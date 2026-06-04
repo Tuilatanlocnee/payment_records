@@ -12,7 +12,7 @@ window.AppStore = {
     },
 
     // Đường dẫn cơ sở kết nối đến Express API Server
-    API_BASE: "http://localhost:5000/api",
+    API_BASE: "http://127.0.0.1:5000/api",
 
     /**
      * Khởi tạo Store và tải dữ liệu từ Backend API
