@@ -355,7 +355,7 @@ function initApp() {
                                 Đã áp dụng thay thế thành công cụm từ. Hãy nhập cụm từ tìm kiếm mới để tiếp tục.
                             </div>
                         `;
-                        lucide.createIcons();
+                        safeCreateIcons();
                     }
                 } catch (err) {
                     showToast("Lỗi thay thế: " + err.message, "danger");
@@ -676,7 +676,7 @@ function showToast(message, type = 'info') {
     `;
 
     container.appendChild(toast);
-    lucide.createIcons();
+    safeCreateIcons();
 
     setTimeout(() => {
         toast.style.animation = 'fadeOut 0.3s forwards';

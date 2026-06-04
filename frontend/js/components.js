@@ -4,6 +4,14 @@
  * ==========================================================================
  */
 
+window.safeCreateIcons = function() {
+    if (typeof lucide !== 'undefined' && typeof lucide.createIcons === 'function') {
+        lucide.createIcons();
+    } else {
+        console.warn("Thư viện Lucide icons chưa được tải xong từ CDN.");
+    }
+};
+
 window.Components = {
     /**
      * Định dạng kích thước file sang định dạng dễ đọc (KB, MB)
@@ -64,7 +72,7 @@ window.Components = {
                     Chưa có hồ sơ thanh toán nào được tạo.
                 </div>
             `;
-            lucide.createIcons();
+            safeCreateIcons();
             return;
         }
 
@@ -82,7 +90,7 @@ window.Components = {
             `;
         }).join('');
 
-        lucide.createIcons();
+        safeCreateIcons();
     },
 
     /**
@@ -166,7 +174,7 @@ window.Components = {
             </div>
         `;
 
-        lucide.createIcons();
+        safeCreateIcons();
     },
 
     /**
@@ -255,7 +263,7 @@ window.Components = {
                     <p style="font-size: 13px; font-weight: 600;">Không tìm thấy cụm từ "${query}" trong bất kỳ tài liệu nào của hồ sơ này.</p>
                 </div>
             `;
-            lucide.createIcons();
+            safeCreateIcons();
             return;
         }
 
@@ -310,7 +318,7 @@ window.Components = {
                 </table>
             </div>
         `;
-        lucide.createIcons();
+        safeCreateIcons();
     },
 
     /**
