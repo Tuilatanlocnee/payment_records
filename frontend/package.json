@@ -1,0 +1,12 @@
+{
+  "name": "payment-records-frontend",
+  "version": "1.0.0",
+  "description": "Frontend client for MobiFone payment records system",
+  "scripts": {
+    "dev": "vite --port 5173 --host"
+  },
+  "devDependencies": {
+    "vite": "^5.2.0"
+  },
+  "private": true
+}

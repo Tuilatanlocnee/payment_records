@@ -25,6 +25,28 @@ function initApp() {
     // Render danh sách hồ sơ ban đầu
     renderProfiles();
 
+    // Sự kiện click vào logo MobiFone để quay về trang chủ (chưa chọn hồ sơ nào)
+    const logoContainer = document.querySelector('.logo-container');
+    if (logoContainer) {
+        logoContainer.style.cursor = 'pointer';
+        logoContainer.addEventListener('click', async () => {
+            try {
+                currentSearchQuery = ""; // Reset từ khóa tìm kiếm
+                await AppStore.setActiveProfile(null);
+                renderProfiles();
+                renderActiveProfile();
+                
+                // Reset ô tìm kiếm hồ sơ ở Sidebar
+                const searchInput = document.getElementById('search-profile-input');
+                if (searchInput) {
+                    searchInput.value = '';
+                }
+            } catch (error) {
+                console.error("Lỗi khi quay về màn hình chính:", error);
+            }
+        });
+    }
+
     // Đăng ký sự kiện tạo hồ sơ mới trên Header
     const btnCreateProfile = document.getElementById('btn-create-profile');
     const modalCreateProfile = document.getElementById('create-profile-modal');
@@ -173,7 +195,7 @@ function initApp() {
                             Hãy nhập cụm từ tìm kiếm ở trên để bắt đầu chỉnh sửa.
                         </div>
                     `;
-                    lucide.createIcons();
+                    safeCreateIcons();
                 }
 
                 // Cập nhật lại preview (ẩn đi nếu không có replacements thực tế)
@@ -182,8 +204,15 @@ function initApp() {
                     if (activeProfile.replacements && activeProfile.replacements.length > 0) {
                         if (activeProfile.files && activeProfile.files.length > 0) {
                             const selectPreview = document.getElementById('select-preview-file');
+                            if (selectPreview) {
+                                const editedFiles = activeProfile.files.filter(file => file.currentContent !== file.originalContent);
+                                const displayFiles = editedFiles.length > 0 ? editedFiles : activeProfile.files;
+                                selectPreview.innerHTML = displayFiles.map((file, idx) => `
+                                    <option value="${file.id}" ${idx === 0 ? 'selected' : ''}>${file.name}</option>
+                                `).join('');
+                            }
                             const fileId = selectPreview ? selectPreview.value : activeProfile.files[0].id;
-                            const file = activeProfile.files.find(f => f.id === fileId);
+                            const file = activeProfile.files.find(f => f.id === fileId) || activeProfile.files[0];
                             if (file) {
                                 Components.updateFilePreview(file, activeProfile, "");
                             }
@@ -197,27 +226,6 @@ function initApp() {
             }
         });
 
-        // 2. Xử lý nạp nhanh tài liệu mẫu
-        detailContainer.addEventListener('click', async (e) => {
-            const btnLoadMock = e.target.closest('#btn-load-mock-files');
-            if (btnLoadMock) {
-                const activeProfile = AppStore.getActiveProfile();
-                if (!activeProfile) return;
-
-                try {
-                    const addedCount = await AppStore.loadMockData(activeProfile.id);
-                    if (addedCount > 0) {
-                        showToast(`Đã nạp thành công ${addedCount} tài liệu mẫu vào hồ sơ.`, 'success');
-                        renderProfiles();
-                        renderActiveProfile();
-                    } else {
-                        showToast("Bộ tài liệu mẫu đã được nạp đầy đủ trong hồ sơ này.", "info");
-                    }
-                } catch (error) {
-                    showToast(error.message, 'danger');
-                }
-            }
-        });
 
         // 3. Xử lý xóa file khỏi hồ sơ
         detailContainer.addEventListener('click', async (e) => {
@@ -314,8 +322,11 @@ function initApp() {
                 const shouldSyncAll = syncCheckbox ? syncCheckbox.checked : true;
 
                 // Lọc ra danh sách các file khớp chứa cụm từ đó
-                const matchingFiles = activeProfile.files.filter(file => 
-                    file.currentContent.includes(findText)
+                // Chuẩn hóa Unicode NFC và rút gọn khoảng trắng để so sánh chính xác hơn (chấp nhận khoảng trắng kép/xuống dòng)
+                const cleanString = (str) => (str || '').normalize('NFC').replace(/\s+/g, ' ');
+                const normalizedFind = cleanString(findText);
+                const matchingFiles = activeProfile.files.filter(file =>
+                    cleanString(file.currentContent).includes(normalizedFind)
                 );
 
                 let targetFileIds = [];
@@ -359,6 +370,28 @@ function initApp() {
                     }
                 } catch (err) {
                     showToast("Lỗi thay thế: " + err.message, "danger");
+                }
+            }
+        });
+
+        // Xử lý Bấm nút Hoàn tác từng cụm từ đã thay thế
+        detailContainer.addEventListener('click', async (e) => {
+            const btnUndo = e.target.closest('.btn-undo-replace');
+            if (btnUndo) {
+                const findText = btnUndo.getAttribute('data-find-text');
+                const replaceText = btnUndo.getAttribute('data-replace-text');
+                const activeProfile = AppStore.getActiveProfile();
+                
+                if (activeProfile && confirm(`Bạn có chắc chắn muốn khôi phục cụm từ "${replaceText}" trở lại thành "${findText}" trong tất cả tài liệu không?`)) {
+                    try {
+                        await AppStore.undoReplacement(activeProfile.id, findText, replaceText);
+                        showToast(`Đã khôi phục thành công cụm từ gốc!`, "success");
+                        
+                        renderProfiles();
+                        renderActiveProfile();
+                    } catch (error) {
+                        showToast("Lỗi hoàn tác: " + error.message, "danger");
+                    }
                 }
             }
         });
@@ -459,9 +492,29 @@ function initApp() {
                     url += `&fileIds=${selectedIds}`;
                 }
 
-                // Thực hiện chuyển hướng để trình duyệt tải file ZIP từ API Backend
-                window.location.href = url;
-                showToast("Đang đóng gói tài liệu và tải về tệp tin ZIP...", "success");
+                // Tải file qua Fetch API dưới dạng Blob để tránh làm gián đoạn trạng thái trang web
+                showToast("Đang đóng gói tài liệu và chuẩn bị tải về...", "success");
+
+                fetch(url)
+                    .then(response => {
+                        if (!response.ok) throw new Error("Không thể tải file xuất bản từ server.");
+                        return response.blob();
+                    })
+                    .then(blob => {
+                        const blobUrl = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = blobUrl;
+                        link.download = `${activeProfile.name}_export.zip`;
+                        link.style.display = 'none';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        window.URL.revokeObjectURL(blobUrl);
+                    })
+                    .catch(err => {
+                        console.error("Lỗi xuất file:", err);
+                        showToast("Lỗi khi tải xuống hồ sơ: " + err.message, "danger");
+                    });
             }
         });
     }
@@ -486,9 +539,12 @@ function triggerTextSearch() {
     // Lưu từ khóa tìm kiếm tích cực
     currentSearchQuery = query;
 
-    // Lọc các file chứa query trong nội dung hiện tại
+    // Chuẩn hóa Unicode NFC và rút gọn khoảng trắng để so sánh chính xác hơn (chấp nhận khoảng trắng kép/xuống dòng)
+    const cleanString = (str) => (str || '').normalize('NFC').replace(/\s+/g, ' ');
+    const normalizedQuery = cleanString(query);
     const matchingFiles = activeProfile.files.filter(file => 
-        file.currentContent.includes(query)
+        cleanString(file.currentContent).includes(normalizedQuery) ||
+        cleanString(file.originalContent).includes(normalizedQuery)
     );
 
     // Render bảng kết quả
@@ -505,12 +561,19 @@ function triggerTextSearch() {
         if (previewSection) {
             previewSection.classList.remove('hidden');
             
-            // Lấy file đang được chọn trong dropdown hoặc mặc định là file đầu tiên
+            // Cập nhật dropdown để chỉ hiển thị các tài liệu chứa cụm từ tìm kiếm
             const selectPreview = document.getElementById('select-preview-file');
-            const fileId = selectPreview ? selectPreview.value : activeProfile.files[0].id;
-            const file = activeProfile.files.find(f => f.id === fileId);
-            if (file) {
-                Components.updateFilePreview(file, activeProfile, currentSearchQuery);
+            if (selectPreview) {
+                const targetFiles = matchingFiles.length > 0 ? matchingFiles : activeProfile.files;
+                selectPreview.innerHTML = targetFiles.map((file, idx) => `
+                    <option value="${file.id}" ${idx === 0 ? 'selected' : ''}>${file.name}</option>
+                `).join('');
+            }
+            
+            // Chọn file khớp đầu tiên để xem trước
+            const defaultFile = matchingFiles[0] || activeProfile.files[0];
+            if (defaultFile) {
+                Components.updateFilePreview(defaultFile, activeProfile, currentSearchQuery);
             }
         }
     }
@@ -626,7 +689,7 @@ function renderProfiles() {
  */
 function renderActiveProfile() {
     const activeProfile = AppStore.getActiveProfile();
-    Components.renderProfileDetail(activeProfile);
+    Components.renderProfileDetail(activeProfile, currentSearchQuery);
 
     // Duy trì hiển thị nút Hủy tìm kiếm nếu đang có từ khóa tìm kiếm tích cực
     if (currentSearchQuery) {

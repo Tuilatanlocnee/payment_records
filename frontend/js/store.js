@@ -147,23 +147,6 @@ window.AppStore = {
         return newFile;
     },
 
-    /**
-     * Nạp nhanh bộ tài liệu mẫu MobiFone vào hồ sơ
-     */
-    async loadMockData(profileId) {
-        const response = await fetch(`${this.API_BASE}/profiles/${profileId}/load-mock`, {
-            method: 'POST'
-        });
-
-        if (!response.ok) {
-            const errData = await response.json();
-            throw new Error(errData.error || "Không thể nạp bộ tài liệu mẫu.");
-        }
-
-        const data = await response.json();
-        await this.refreshProfile(profileId);
-        return data.addedCount;
-    },
 
     /**
      * Xóa một file khỏi hồ sơ
@@ -198,7 +181,7 @@ window.AppStore = {
         const updatedProfile = await response.json();
         await this.refreshProfile(profileId);
         return updatedProfile;
-    }
+    },
 
     /**
      * Khôi phục tài liệu gốc và xóa lịch sử thay thế của hồ sơ qua API
@@ -211,6 +194,26 @@ window.AppStore = {
         if (!response.ok) {
             const errData = await response.json();
             throw new Error(errData.error || "Không thể khôi phục tài liệu gốc.");
+        }
+
+        const updatedProfile = await response.json();
+        await this.refreshProfile(profileId);
+        return updatedProfile;
+    },
+
+    /**
+     * Khôi phục (hoàn tác) một cụm từ đã thay thế về từ gốc qua API
+     */
+    async undoReplacement(profileId, findText, replaceText) {
+        const response = await fetch(`${this.API_BASE}/profiles/${profileId}/undo-replace`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ findText, replaceText })
+        });
+
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || "Không thể hoàn tác thay thế.");
         }
 
         const updatedProfile = await response.json();

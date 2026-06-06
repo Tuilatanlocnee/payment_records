@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ thống Tự động hóa & Đồng bộ Hồ sơ Thanh toán - MobiFone Cần Thơ</title>
+    <!-- Nhập Font chữ văn phòng Inter chuyên nghiệp từ Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Nhập thư viện icons Lucide để có các icon phẳng, tinh tế và hiện đại -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Nhập file CSS chính -->
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+    <!-- Header của ứng dụng -->
+    <header class="app-header">
+        <div class="header-left">
+            <div class="logo-container">
+                <img src="MobiFone_logo.svg.png" alt="MobiFone Logo" class="logo-img">
+            </div>
+            <div class="header-divider"></div>
+            <h1 class="header-title">HỆ THỐNG ĐỒNG BỘ & TỰ ĐỘNG HÓA HỒ SƠ THANH TOÁN</h1>
+        </div>
+        <div class="header-right">
+            <!-- Nút tạo hồ sơ mới trên header theo yêu cầu của đề tài -->
+            <button id="btn-create-profile" class="btn btn-primary">
+                <i data-lucide="plus-circle"></i>
+                <span class="btn-text">TẠO HỒ SƠ MỚI</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Bố cục chính của ứng dụng (SPA Layout) -->
+    <div class="app-container">
+        <!-- Sidebar bên trái: Danh sách các hồ sơ đã tạo -->
+        <aside class="app-sidebar">
+            <div class="sidebar-header">
+                <h2>Danh sách hồ sơ</h2>
+                <span class="badge" id="profile-count">0 hồ sơ</span>
+            </div>
+            <div class="sidebar-search">
+                <i data-lucide="search" class="search-icon"></i>
+                <input type="text" id="search-profile-input" placeholder="Tìm kiếm hồ sơ...">
+            </div>
+            <!-- Danh sách hồ sơ sẽ được render động tại đây -->
+            <ul id="profile-list" class="profile-list">
+                <!-- Nội dung được render từ js/components.js -->
+            </ul>
+        </aside>
+
+        <!-- Khu vực hiển thị nội dung chính bên phải -->
+        <main class="app-main">
+            <!-- Trạng thái trống khi chưa chọn hồ sơ nào -->
+            <div id="empty-state" class="empty-state">
+                <div class="empty-state-icon">
+                    <i data-lucide="folder-open" style="width: 64px; height: 64px;"></i>
+                </div>
+                <h3>Chưa chọn hồ sơ thanh toán</h3>
+                <p>Hãy chọn một hồ sơ từ danh sách bên trái hoặc bấm nút "Tạo Hồ Sơ Mới" trên thanh tiêu đề để bắt đầu
+                    làm việc.</p>
+            </div>
+
+            <!-- Vùng hiển thị chi tiết hồ sơ khi được click chọn -->
+            <div id="profile-detail-container" class="profile-detail-container hidden">
+                <!-- Chi tiết hồ sơ sẽ được render động ở đây -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Tạo hồ sơ mới -->
+    <div id="create-profile-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>TẠO HỒ SƠ THANH TOÁN MỚI</h3>
+                <button class="btn-close-modal" id="btn-close-modal-x">&times;</button>
+            </div>
+            <form id="create-profile-form">
+                <div class="form-group">
+                    <label for="profile-name-input">Tên hồ sơ thanh toán <span class="required">*</span></label>
+                    <small class="form-help">Nên đặt tên gợi nhớ đến kỳ thanh toán hoặc nội dung chứng từ để dễ đồng
+                        bộ.</small>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="btn-close-modal-cancel">Hủy bỏ</button>
+                    <button type="submit" class="btn btn-primary" id="btn-submit-profile">Tạo hồ sơ</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification thông báo nhanh các thao tác -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Nạp các file script xử lý logic của ứng dụng -->
+    <script src="js/store.js"></script>
+    <script src="js/components.js"></script>
+    <script src="js/app.js"></script>
+</body>
+
+</html>

@@ -96,7 +96,7 @@ window.Components = {
     /**
      * Render chi tiết của một hồ sơ đang hoạt động
      */
-    renderProfileDetail(profile) {
+    renderProfileDetail(profile, activeSearchQuery = "") {
         const container = document.getElementById('profile-detail-container');
         const emptyState = document.getElementById('empty-state');
         
@@ -148,14 +148,6 @@ window.Components = {
                     <input type="file" id="file-input-hidden" class="hidden" multiple accept=".txt,.doc,.docx">
                 </div>
 
-                <!-- Nút nạp nhanh file mẫu để trải nghiệm hệ thống -->
-                <div style="margin-top: 14px; display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-size: 12px; color: var(--text-secondary);">Bạn chưa có file mẫu?</span>
-                    <button class="btn btn-secondary" id="btn-load-mock-files" style="height: 30px; font-size: 11px; padding: 0 10px;">
-                        <i data-lucide="sparkles" style="width: 14px; height: 14px;"></i>
-                        Nạp nhanh bộ tài liệu mẫu MobiFone
-                    </button>
-                </div>
 
                 <!-- Danh sách các file hiện tại -->
                 <ul class="file-list" id="detail-file-list">
@@ -169,8 +161,8 @@ window.Components = {
             </div>
 
             <!-- Khối 3: Trình xem trước (Split Preview) & Xuất hồ sơ hoàn chỉnh -->
-            <div class="card ${hasReplacements ? '' : 'hidden'}" id="card-preview-section">
-                ${this.renderPreviewBlock(profile)}
+            <div class="card ${hasReplacements || (activeSearchQuery && activeSearchQuery.trim() !== '') ? '' : 'hidden'}" id="card-preview-section">
+                ${this.renderPreviewBlock(profile, activeSearchQuery)}
             </div>
         `;
 
@@ -220,6 +212,34 @@ window.Components = {
             `;
         }
 
+        const replacementsHtml = (profile.replacements && profile.replacements.length > 0) ? `
+            <div class="replacements-history-section" style="margin-top: 20px; border-top: 1px dashed var(--border-color); padding-top: 16px;">
+                <h4 style="font-size: 13px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; color: var(--text-primary);">
+                    <i data-lucide="history" style="width: 16px; height: 16px; color: var(--primary-color);"></i>
+                    Cụm từ đã thay thế trong hồ sơ này (${profile.replacements.length})
+                </h4>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    ${profile.replacements.map(rep => `
+                        <div class="history-item" style="display: flex; justify-content: space-between; align-items: center; background-color: var(--bg-secondary); padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-size: 12px;">
+                            <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; flex-wrap: wrap;">
+                                <span class="phrase-red-tag" style="background-color: var(--accent-red-bg); color: var(--accent-red); border-color: rgba(230,0,18,0.15); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; display: inline-block; padding: 2px 6px; border-radius: 4px;" title="${rep.findText}">${rep.findText}</span>
+                                <i data-lucide="arrow-right" style="width: 14px; height: 14px; color: var(--text-muted);"></i>
+                                <span class="phrase-green-tag" style="background-color: var(--accent-green-bg); color: var(--accent-green); border-color: rgba(46,125,50,0.15); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; display: inline-block; padding: 2px 6px; border-radius: 4px;" title="${rep.replaceText}">${rep.replaceText || '(Xóa từ)'}</span>
+                            </div>
+                            <button class="btn btn-secondary btn-undo-replace" 
+                                    data-find-text="${rep.findText}" 
+                                    data-replace-text="${rep.replaceText}"
+                                    style="height: 28px; padding: 0 8px; font-size: 11px; color: var(--accent-red); border-color: rgba(230, 0, 18, 0.2); cursor: pointer;" 
+                                    title="Hoàn tác thay thế cụm từ này">
+                                <i data-lucide="rotate-ccw" style="width: 12px; height: 12px; margin-right: 4px;"></i>
+                                Hoàn tác
+                            </button>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        ` : '';
+
         return `
             <div class="card-title">
                 <i data-lucide="search"></i> Tìm kiếm & Thay thế văn bản hàng loạt
@@ -246,6 +266,7 @@ window.Components = {
                     Hãy nhập cụm từ tìm kiếm ở trên để bắt đầu chỉnh sửa.
                 </div>
             </div>
+            ${replacementsHtml}
         `;
     },
 
@@ -324,10 +345,30 @@ window.Components = {
     /**
      * Dựng nội dung khu vực xem trước (Preview) và Xuất file
      */
-    renderPreviewBlock(profile) {
+    renderPreviewBlock(profile, activeSearchQuery = "") {
         if (!profile.files || profile.files.length === 0) return '';
 
-        const options = profile.files.map((file, idx) => `
+        let displayFiles = profile.files;
+        if (activeSearchQuery && activeSearchQuery.trim() !== "") {
+            const cleanString = (str) => (str || '').normalize('NFC').replace(/\s+/g, ' ');
+            const normalizedQuery = cleanString(activeSearchQuery);
+            displayFiles = profile.files.filter(file => 
+                cleanString(file.currentContent).includes(normalizedQuery) ||
+                cleanString(file.originalContent).includes(normalizedQuery)
+            );
+        } else if (profile.replacements && profile.replacements.length > 0) {
+            // Chỉ hiển thị những file thực tế đã được chỉnh sửa
+            displayFiles = profile.files.filter(file => 
+                file.currentContent !== file.originalContent
+            );
+        }
+
+        // Nếu kết quả lọc rỗng, hiển thị lại tất cả file
+        if (displayFiles.length === 0) {
+            displayFiles = profile.files;
+        }
+
+        const options = displayFiles.map((file, idx) => `
             <option value="${file.id}" ${idx === 0 ? 'selected' : ''}>${file.name}</option>
         `).join('');
 
@@ -451,7 +492,8 @@ window.Components = {
     formatContentForPreview(content, type, replacements = [], activeSearchQuery = "") {
         if (!content) return '';
         
-        let escaped = content
+        // Normalize Unicode NFC để đồng nhất ký tự tiếng Việt
+        let escaped = content.normalize('NFC')
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;");
@@ -462,16 +504,21 @@ window.Components = {
                 // Highlight các từ cũ đã bị thay thế bằng màu đỏ
                 replacements.forEach(({ findText }) => {
                     if (!findText) return;
-                    const escapedFind = findText.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-                    const regex = new RegExp(`(${escapedFind})`, 'g');
+                    const normalizedFind = findText.normalize('NFC');
+                    const escapedFind = normalizedFind.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+                    // Sử dụng \s+ để khớp bất kỳ khoảng trắng nào (kép, xuống dòng)
+                    const regexPattern = escapedFind.replace(/\s+/g, '\\s+');
+                    const regex = new RegExp(`(${regexPattern})`, 'g');
                     escaped = escaped.replace(regex, '<span class="highlight-red">$1</span>');
                 });
             } else {
                 // Highlight các từ mới thay thế bằng màu xanh lá
                 replacements.forEach(({ replaceText }) => {
                     if (!replaceText) return;
-                    const escapedReplace = replaceText.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-                    const regex = new RegExp(`(${escapedReplace})`, 'g');
+                    const normalizedReplace = replaceText.normalize('NFC');
+                    const escapedReplace = normalizedReplace.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+                    const regexPattern = escapedReplace.replace(/\s+/g, '\\s+');
+                    const regex = new RegExp(`(${regexPattern})`, 'g');
                     escaped = escaped.replace(regex, '<span class="highlight-green">$1</span>');
                 });
             }
@@ -479,8 +526,10 @@ window.Components = {
 
         // Highlight từ khóa đang tìm kiếm tạm thời bằng màu vàng nhạt (chưa thay thế)
         if (activeSearchQuery && activeSearchQuery.trim() !== "") {
-            const escapedSearch = activeSearchQuery.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-            const regex = new RegExp(`(${escapedSearch})`, 'gi'); // Không phân biệt chữ hoa chữ thường khi tìm kiếm
+            const normalizedSearch = activeSearchQuery.normalize('NFC');
+            const escapedSearch = normalizedSearch.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+            const regexPattern = escapedSearch.replace(/\s+/g, '\\s+');
+            const regex = new RegExp(`(${regexPattern})`, 'g'); // Phân biệt chữ hoa và chữ thường khi tìm kiếm
             escaped = escaped.replace(regex, '<span class="highlight-search-temp">$1</span>');
         }
         
