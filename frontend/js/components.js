@@ -182,7 +182,7 @@ window.Components = {
         }
 
         return files.map(file => `
-            <li class="file-item">
+            <li class="file-item" data-file-id="${file.id}">
                 <div class="file-info">
                     <i data-lucide="file-signature"></i>
                     <div style="min-width: 0;">
@@ -533,7 +533,50 @@ window.Components = {
             escaped = escaped.replace(regex, '<span class="highlight-search-temp">$1</span>');
         }
         
-        return escaped;
+        // Phân tích thông minh theo từng dòng để định dạng căn lề (quốc hiệu, tiêu đề, ngày tháng) chuẩn Việt Nam
+        const lines = escaped.split('\n');
+        const formattedLines = lines.map(line => {
+            const trimmedLine = line.trim();
+            const upperLine = trimmedLine.toUpperCase();
+
+            // 0. Nhận diện và render hình ảnh trích xuất từ Word gốc
+            if (trimmedLine.startsWith("[IMAGE:") && trimmedLine.endsWith("]")) {
+                const base64Src = trimmedLine.substring(7, trimmedLine.length - 1);
+                return `<div style="text-align: center; margin: 15px 0;"><img src="${base64Src}" style="max-width: 100%; max-height: 250px; height: auto; border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); display: inline-block;"></div>`;
+            }
+
+            // 1. Quốc hiệu
+            if (upperLine.includes("CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM")) {
+                return `<div style="text-align: center; font-weight: bold; margin-bottom: 2px;">${line}</div>`;
+            }
+            // 2. Tiêu ngữ
+            if (upperLine.includes("ĐỘC LẬP - TỰ DO - HẠNH PHÚC") || trimmedLine === "Độc lập - Tự do - Hạnh phúc") {
+                return `<div style="text-align: center; font-weight: bold; margin-bottom: 15px;">${line}</div>`;
+            }
+            // 3. Tiêu đề chính (BÁO CÁO, TỜ TRÌNH, BIÊN BẢN, v.v. - viết hoa hoàn toàn và ngắn)
+            const isTitleKeyword = /^(BÁO CÁO|TỜ TRÌNH|BIÊN BẢN|QUYẾT ĐỊNH|KẾ HOẠCH|CÔNG VĂN|ĐỀ NGHỊ|DANH SÁCH|THÔNG BÁO|HỢP ĐỒNG)(\b|$)/i.test(trimmedLine);
+            if (isTitleKeyword && trimmedLine.length < 100 && trimmedLine === upperLine) {
+                return `<div style="text-align: center; font-weight: bold; margin-top: 15px; margin-bottom: 5px; font-size: 1.15em; color: var(--primary-color);">${line}</div>`;
+            }
+            // Tiêu đề phụ đi kèm ngay sau tiêu đề chính (ví dụ: "Về việc...", "V/v...")
+            if ((trimmedLine.startsWith("Về việc") || trimmedLine.startsWith("V/v") || trimmedLine.toLowerCase().startsWith("về việc") || trimmedLine.toLowerCase().startsWith("v/v")) && trimmedLine.length < 120) {
+                return `<div style="text-align: center; font-style: italic; margin-bottom: 15px; font-weight: 500;">${line}</div>`;
+            }
+            // 4. Ngày tháng địa danh hành chính (ví dụ: "..., ngày ... tháng ... năm ...")
+            const isDateLine = /,\s*ngày\s+\d+\s+tháng\s+\d+\s+năm\s+\d+/i.test(trimmedLine);
+            if (isDateLine && trimmedLine.length < 80) {
+                return `<div style="text-align: right; font-style: italic; margin-bottom: 12px; padding-right: 10px;">${line}</div>`;
+            }
+            // 5. Nơi nhận hoặc Kính gửi
+            if ((trimmedLine.startsWith("Kính gửi:") || trimmedLine.startsWith("Kính gửi :") || trimmedLine.startsWith("KÍNH GỬI:")) && trimmedLine.length < 120) {
+                return `<div style="font-weight: bold; margin-top: 8px; margin-bottom: 8px;">${line}</div>`;
+            }
+            
+            // Mặc định
+            return `<div>${line}</div>`;
+        });
+
+        return formattedLines.join('');
     },
 
     /**

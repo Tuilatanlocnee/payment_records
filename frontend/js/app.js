@@ -517,6 +517,105 @@ function initApp() {
                     });
             }
         });
+
+        // 13. Xử lý hiển thị popover xem trước nội dung file khi click (Dạng Modal căn giữa)
+        let activePopover = null;
+        let activeOverlay = null;
+
+        // Hàm helper đóng popover và overlay với hiệu ứng mượt mà
+        const closePopoverPreview = () => {
+            if (activePopover) {
+                activePopover.classList.remove('visible');
+                setTimeout(() => {
+                    if (activePopover) {
+                        activePopover.remove();
+                        activePopover = null;
+                    }
+                }, 200);
+            }
+            if (activeOverlay) {
+                activeOverlay.classList.remove('visible');
+                setTimeout(() => {
+                    if (activeOverlay) {
+                        activeOverlay.remove();
+                        activeOverlay = null;
+                    }
+                }, 200);
+            }
+        };
+        
+        detailContainer.addEventListener('click', (e) => {
+            const fileItem = e.target.closest('.file-item');
+            if (fileItem) {
+                // Nếu click vào nút xóa file, ta tắt popover và để sự kiện xóa chạy bình thường
+                if (e.target.closest('.btn-remove-file')) {
+                    closePopoverPreview();
+                    return;
+                }
+
+                const fileId = fileItem.getAttribute('data-file-id');
+                const activeProfile = AppStore.getActiveProfile();
+                if (!activeProfile) return;
+
+                const file = activeProfile.files.find(f => f.id === fileId);
+                if (!file) return;
+
+                // Tạo lớp overlay nền mờ nếu chưa có
+                if (!activeOverlay) {
+                    activeOverlay = document.createElement('div');
+                    activeOverlay.className = 'popover-overlay';
+                    document.body.appendChild(activeOverlay);
+                    
+                    // Click vào overlay để đóng popover
+                    activeOverlay.addEventListener('click', closePopoverPreview);
+                }
+
+                // Tạo phần tử popover nếu chưa có
+                if (!activePopover) {
+                    activePopover = document.createElement('div');
+                    activePopover.className = 'file-preview-popover';
+                    document.body.appendChild(activePopover);
+                }
+
+                // Lấy toàn bộ nội dung gốc để hiển thị xem trước đầy đủ
+                const rawText = file.originalContent || 'Tài liệu trống';
+                
+                // Định dạng nội dung xem trước giống như văn bản gốc bên dưới (bao gồm highlight đỏ/vàng)
+                const formattedContent = Components.formatContentForPreview(
+                    rawText, 
+                    'original', 
+                    activeProfile.replacements || [], 
+                    currentSearchQuery
+                );
+
+                activePopover.innerHTML = `
+                    <div class="popover-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 8px;">
+                        <div style="min-width: 0; flex: 1;">
+                            <div class="popover-title" style="font-size: 14px; font-weight: 700; color: var(--primary-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${file.name}">${file.name}</div>
+                            <div class="popover-size" style="font-size: 11.5px; color: var(--text-secondary); margin-top: 2px;">${Components.formatFileSize(file.size)}</div>
+                        </div>
+                        <button class="popover-close-btn" style="background: none; border: none; font-size: 20px; color: var(--text-secondary); cursor: pointer; padding: 0 4px; line-height: 1; transition: var(--transition-fast);">&times;</button>
+                    </div>
+                    <div class="popover-content">${formattedContent}</div>
+                `;
+
+                // Gán sự kiện click nút đóng x
+                const closeBtn = activePopover.querySelector('.popover-close-btn');
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', (event) => {
+                        event.stopPropagation(); // Ngăn click loang rộng
+                        closePopoverPreview();
+                    });
+                }
+
+                // Kích hoạt hiển thị với hiệu ứng transition mượt mà
+                activeOverlay.offsetWidth; // Ép reflow
+                activePopover.offsetWidth;
+                
+                activeOverlay.classList.add('visible');
+                activePopover.classList.add('visible');
+            }
+        });
     }
 }
 
@@ -747,4 +846,17 @@ function showToast(message, type = 'info') {
             toast.remove();
         });
     }, 3200);
+}
+
+/**
+ * Hàm escape ký tự đặc biệt hiển thị an toàn trên Popover
+ */
+function escapeHtmlForPopover(unsafe) {
+    if (!unsafe) return "";
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }

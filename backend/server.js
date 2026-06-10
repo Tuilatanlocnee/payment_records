@@ -210,7 +210,92 @@ function createMinimalDocx(text) {
 
 
 
-// Phân tích file .docx để trích xuất văn bản thô sạch sẽ
+// Hàm phân tích một đoạn văn <w:p> từ cấu trúc XML Word
+function parseParagraph(paragraphXml, relsMap, zip) {
+  const paragraphRegex = /<w:p\b[^>]*>([\s\S]*?)<\/w:p>/;
+  const match = paragraphXml.match(paragraphRegex);
+  if (!match) return "";
+  const paragraphContent = match[1];
+  let paragraphText = "";
+  
+  let runMatch;
+  const localRunRegex = /<w:r\b[^>]*>([\s\S]*?)<\/w:r>/g;
+  
+  while ((runMatch = localRunRegex.exec(paragraphContent)) !== null) {
+    const runXml = runMatch[1];
+    
+    // Trích xuất text và ngắt dòng trong run
+    const cleanRunXml = runXml
+      .replace(/<w:br\b[^>]*\/>/g, '\n')
+      .replace(/<w:cr\b[^>]*\/>/g, '\n')
+      .replace(/<w:tab\b[^>]*\/>/g, '\t');
+
+    let textMatch;
+    const textRegex = /<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g;
+    while ((textMatch = textRegex.exec(cleanRunXml)) !== null) {
+      paragraphText += textMatch[1];
+    }
+  }
+  
+  // Trích xuất hình ảnh dựa trên các relationship ID có trong paragraph
+  let imgTags = "";
+  const attrRegex = /=\s*["']([^"']+)["']/g;
+  let attrMatch;
+  const seenRids = new Set();
+  while ((attrMatch = attrRegex.exec(paragraphContent)) !== null) {
+    const rId = attrMatch[1];
+    if (relsMap[rId] && !seenRids.has(rId)) {
+      seenRids.add(rId);
+      const target = relsMap[rId];
+      let zipPath = target;
+      if (!zipPath.startsWith('word/')) {
+        zipPath = 'word/' + zipPath;
+      }
+      const entry = zip.getEntry(zipPath);
+      if (entry) {
+        const imgBuffer = entry.getData();
+        const ext = zipPath.split('.').pop().toLowerCase();
+        let mime = 'image/png';
+        if (ext === 'jpg' || ext === 'jpeg') mime = 'image/jpeg';
+        else if (ext === 'gif') mime = 'image/gif';
+        else if (ext === 'svg') mime = 'image/svg+xml';
+        const imgBase64 = imgBuffer.toString('base64');
+        imgTags += `\n[IMAGE:data:${mime};base64,${imgBase64}]\n`;
+      }
+    }
+  }
+  paragraphText += imgTags;
+  return decodeXmlEntities(paragraphText).normalize('NFC');
+}
+
+// Hàm phân tích một bảng biểu <w:tbl> từ cấu trúc XML Word
+function parseTable(tableXml, relsMap, zip) {
+  let rowsHtml = [];
+  const rowRegex = /<w:tr\b[^>]*>([\s\S]*?)<\/w:tr>/g;
+  let rowMatch;
+  while ((rowMatch = rowRegex.exec(tableXml)) !== null) {
+    const rowContent = rowMatch[1];
+    let cellsHtml = [];
+    const cellRegex = /<w:tc\b[^>]*>([\s\S]*?)<\/w:tc>/g;
+    let cellMatch;
+    while ((cellMatch = cellRegex.exec(rowContent)) !== null) {
+      const cellContent = cellMatch[1];
+      // Phân tích các đoạn văn trong cell
+      const pRegex = /<w:p\b[^>]*>([\s\S]*?)<\/w:p>/g;
+      let pMatch;
+      let cellParagraphs = [];
+      while ((pMatch = pRegex.exec(cellContent)) !== null) {
+        cellParagraphs.push(parseParagraph(pMatch[0], relsMap, zip));
+      }
+      const cellText = cellParagraphs.join('<br>');
+      cellsHtml.push(`<td>${cellText}</td>`);
+    }
+    rowsHtml.push(`<tr>${cellsHtml.join('')}</tr>`);
+  }
+  return `<table class="docx-table"><tbody>${rowsHtml.join('')}</tbody></table>`;
+}
+
+// Phân tích file .docx để trích xuất văn bản thô sạch sẽ, bảo toàn cấu trúc bảng và ảnh
 function parseDocxToText(buffer) {
   try {
     const zip = new AdmZip(buffer);
@@ -219,41 +304,43 @@ function parseDocxToText(buffer) {
       throw new Error("Không thể tìm thấy word/document.xml trong tệp .docx");
     }
 
-    // Trích xuất các đoạn văn <w:p>...</w:p>
-    const paragraphRegex = /<w:p\b[^>]*>([\s\S]*?)<\/w:p>/g;
-    let paragraphMatch;
-    let paragraphs = [];
-
-    while ((paragraphMatch = paragraphRegex.exec(documentXml)) !== null) {
-      const paragraphContent = paragraphMatch[1];
-      let paragraphText = "";
-      
-      // Tìm tất cả các runs trong paragraph này
-      let runMatch;
-      const localRunRegex = /<w:r\b[^>]*>([\s\S]*?)<\/w:r>/g;
-      
-      while ((runMatch = localRunRegex.exec(paragraphContent)) !== null) {
-        const runXml = runMatch[1];
-        
-        // Trích xuất text và ngắt dòng trong run
-        const cleanRunXml = runXml
-          .replace(/<w:br\b[^>]*\/>/g, '\n')
-          .replace(/<w:cr\b[^>]*\/>/g, '\n')
-          .replace(/<w:tab\b[^>]*\/>/g, '\t');
-
-        let textMatch;
-        const textRegex = /<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g;
-        while ((textMatch = textRegex.exec(cleanRunXml)) !== null) {
-          paragraphText += textMatch[1];
+    // Đọc các relationships hình ảnh từ file document.rels để lấy mapping rId -> target
+    let relsMap = {};
+    try {
+      const relsXml = zip.readAsText('word/_rels/document.xml.rels');
+      if (relsXml) {
+        const relRegex = /<Relationship\b[^>]*Id="([^"]+)"[^>]*Type="[^"]*\/relationships\/image"[^>]*Target="([^"]+)"/g;
+        let relMatch;
+        while ((relMatch = relRegex.exec(relsXml)) !== null) {
+          relsMap[relMatch[1]] = relMatch[2];
         }
       }
-      
-      // Normalize Unicode NFC để đảm bảo ký tự tiếng Việt có dấu được lưu nhất quán
-      // tránh lỗi so sánh string giữa NFD (từ XML Word) và NFC (người dùng gõ)
-      paragraphs.push(decodeXmlEntities(paragraphText).normalize('NFC'));
+    } catch (e) {
+      console.warn("Không tìm thấy tệp relationships hình ảnh:", e.message);
+    }
+
+    const bodyRegex = /<w:body\b[^>]*>([\s\S]*?)<\/w:body>/;
+    const bodyMatch = documentXml.match(bodyRegex);
+    if (!bodyMatch) {
+      throw new Error("Không thể tìm thấy w:body trong tệp .docx");
+    }
+    const bodyContent = bodyMatch[1];
+
+    // Lấy tất cả các phần tử con cấp cao nhất của w:body (w:p hoặc w:tbl)
+    const elementRegex = /(<w:p\b[^>]*>[\s\S]*?<\/w:p>|<w:tbl\b[^>]*>[\s\S]*?<\/w:tbl>)/g;
+    let elementMatch;
+    let elements = [];
+
+    while ((elementMatch = elementRegex.exec(bodyContent)) !== null) {
+      const elementXml = elementMatch[1];
+      if (elementXml.startsWith('<w:p')) {
+        elements.push(parseParagraph(elementXml, relsMap, zip));
+      } else if (elementXml.startsWith('<w:tbl')) {
+        elements.push(parseTable(elementXml, relsMap, zip));
+      }
     }
     
-    return paragraphs.join('\n');
+    return elements.join('\n');
   } catch (error) {
     console.error("Lỗi khi phân tích tệp .docx:", error);
     throw error;
