@@ -1505,3 +1505,26 @@ body {
     color: var(--accent-red) !important;
     transform: scale(1.15);
 }
+
+/* ==========================================================================
+   20. Định dạng các bảng biểu trích xuất từ tệp DOCX gốc
+   ========================================================================== */
+.docx-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+    font-size: 14.5px;
+    font-family: 'Times New Roman', Times, serif;
+    background-color: #ffffff;
+}
+
+.docx-table td, .docx-table th {
+    border: 1px solid #cbd5e1;
+    padding: 6px 8px;
+    vertical-align: top;
+    line-height: 1.5;
+}
+
+.docx-table tr:nth-child(even) {
+    background-color: #f8fafc;
+}

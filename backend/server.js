@@ -260,7 +260,48 @@ function parseParagraph(paragraphXml, relsMap, zip) {
         else if (ext === 'gif') mime = 'image/gif';
         else if (ext === 'svg') mime = 'image/svg+xml';
         const imgBase64 = imgBuffer.toString('base64');
-        imgTags += `\n[IMAGE:data:${mime};base64,${imgBase64}]\n`;
+        
+        // Tìm kích thước cx, cy của hình ảnh cụ thể rId này
+        let widthPt = null;
+        let heightPt = null;
+        
+        // Tìm w:drawing chứa rId này
+        const drawingRegex = new RegExp(`<w:drawing\\b[^>]*>(?:(?!<\\/w:drawing>)[\\s\\S])*?r:embed="${rId}"[\\s\\S]*?<\\/w:drawing>`, 'i');
+        const drawingMatch = paragraphContent.match(drawingRegex);
+        if (drawingMatch) {
+          const drawingXml = drawingMatch[0];
+          const extentMatch = drawingXml.match(/<wp:extent\b[^>]*\bcx="(\d+)"\b[^>]*\bcy="(\d+)"/i);
+          if (extentMatch) {
+            widthPt = Math.round(parseInt(extentMatch[1]) / 12700);
+            heightPt = Math.round(parseInt(extentMatch[2]) / 12700);
+          }
+        } else {
+          // Tìm v:shape chứa rId này
+          const shapeRegex = new RegExp(`<v:shape\\b[^>]*>[\\s\\S]*?r:id="${rId}"[\\s\\S]*?<\\/v:shape>`, 'i');
+          const shapeMatch = paragraphContent.match(shapeRegex);
+          if (shapeMatch) {
+            const shapeXml = shapeMatch[0];
+            const styleMatch = shapeXml.match(/style="([^"]*)"/i);
+            if (styleMatch) {
+              const styleStr = styleMatch[1];
+              const wMatch = styleStr.match(/width:\s*([\d.]+)(pt|px|in|cm)/i);
+              const hMatch = styleStr.match(/height:\s*([\d.]+)(pt|px|in|cm)/i);
+              if (wMatch && hMatch) {
+                widthPt = wMatch[1] + wMatch[2];
+                heightPt = hMatch[1] + hMatch[2];
+              }
+            }
+          }
+        }
+        
+        let sizeInfo = "";
+        if (widthPt && heightPt) {
+          const wUnit = typeof widthPt === 'number' ? widthPt + 'pt' : widthPt;
+          const hUnit = typeof heightPt === 'number' ? heightPt + 'pt' : heightPt;
+          sizeInfo = `|width:${wUnit};height:${hUnit}`;
+        }
+        
+        imgTags += `\n[IMAGE:data:${mime};base64,${imgBase64}${sizeInfo}]\n`;
       }
     }
   }

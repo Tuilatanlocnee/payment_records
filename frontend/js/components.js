@@ -498,7 +498,20 @@ window.Components = {
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;");
 
-        // Highlight các từ cũ/mới đã được thay thế thành công
+        // Phục hồi lại các thẻ bảng HTML được sinh bởi Parser của Backend
+        escaped = escaped
+            .replace(/&lt;table class=&quot;docx-table&quot;&gt;/g, '<table class="docx-table">')
+            .replace(/&lt;table&gt;/g, '<table>')
+            .replace(/&lt;\/table&gt;/g, '</table>')
+            .replace(/&lt;tbody&gt;/g, '<tbody>')
+            .replace(/&lt;\/tbody&gt;/g, '</tbody>')
+            .replace(/&lt;tr&gt;/g, '<tr>')
+            .replace(/&lt;\/tr&gt;/g, '</tr>')
+            .replace(/&lt;td&gt;/g, '<td>')
+            .replace(/&lt;\/td&gt;/g, '</td>')
+            .replace(/&lt;br&gt;/g, '<br>');
+
+        // Highlight các từ cũ/mới đã được thay thế thành công (Tránh thay thế trong các thẻ HTML)
         if (replacements && replacements.length > 0) {
             if (type === 'original') {
                 // Highlight các từ cũ đã bị thay thế bằng màu đỏ
@@ -506,10 +519,13 @@ window.Components = {
                     if (!findText) return;
                     const normalizedFind = findText.normalize('NFC');
                     const escapedFind = normalizedFind.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-                    // Sử dụng \s+ để khớp bất kỳ khoảng trắng nào (kép, xuống dòng)
                     const regexPattern = escapedFind.replace(/\s+/g, '\\s+');
-                    const regex = new RegExp(`(${regexPattern})`, 'g');
-                    escaped = escaped.replace(regex, '<span class="highlight-red">$1</span>');
+                    // Sử dụng group (/<[^>]*>/) để bỏ qua thẻ HTML
+                    const regex = new RegExp(`(<[^>]*>)|(${regexPattern})`, 'g');
+                    escaped = escaped.replace(regex, (match, p1, p2) => {
+                        if (p1) return p1;
+                        return `<span class="highlight-red">${p2}</span>`;
+                    });
                 });
             } else {
                 // Highlight các từ mới thay thế bằng màu xanh lá
@@ -518,31 +534,64 @@ window.Components = {
                     const normalizedReplace = replaceText.normalize('NFC');
                     const escapedReplace = normalizedReplace.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
                     const regexPattern = escapedReplace.replace(/\s+/g, '\\s+');
-                    const regex = new RegExp(`(${regexPattern})`, 'g');
-                    escaped = escaped.replace(regex, '<span class="highlight-green">$1</span>');
+                    const regex = new RegExp(`(<[^>]*>)|(${regexPattern})`, 'g');
+                    escaped = escaped.replace(regex, (match, p1, p2) => {
+                        if (p1) return p1;
+                        return `<span class="highlight-green">${p2}</span>`;
+                    });
                 });
             }
         }
 
-        // Highlight từ khóa đang tìm kiếm tạm thời bằng màu vàng nhạt (chưa thay thế)
+        // Highlight từ khóa đang tìm kiếm tạm thời bằng màu vàng nhạt (chưa thay thế, tránh trong thẻ HTML)
         if (activeSearchQuery && activeSearchQuery.trim() !== "") {
             const normalizedSearch = activeSearchQuery.normalize('NFC');
             const escapedSearch = normalizedSearch.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
             const regexPattern = escapedSearch.replace(/\s+/g, '\\s+');
-            const regex = new RegExp(`(${regexPattern})`, 'g'); // Phân biệt chữ hoa và chữ thường khi tìm kiếm
-            escaped = escaped.replace(regex, '<span class="highlight-search-temp">$1</span>');
+            const regex = new RegExp(`(<[^>]*>)|(${regexPattern})`, 'g');
+            escaped = escaped.replace(regex, (match, p1, p2) => {
+                if (p1) return p1;
+                return `<span class="highlight-search-temp">${p2}</span>`;
+            });
         }
         
-        // Phân tích thông minh theo từng dòng để định dạng căn lề (quốc hiệu, tiêu đề, ngày tháng) chuẩn Việt Nam
+        // Phân tích thông minh theo từng dòng để định dạng căn lề (quốc hiệu, tiêu đề, ngày tháng, chữ ký) chuẩn Việt Nam
         const lines = escaped.split('\n');
+        let inRightSignature = false;
+
         const formattedLines = lines.map(line => {
             const trimmedLine = line.trim();
             const upperLine = trimmedLine.toUpperCase();
 
+            // Nếu dòng chứa các thẻ bảng HTML, bỏ qua việc tự động định dạng dòng
+            const hasTableTag = /<table|<tr|<td/i.test(trimmedLine);
+            if (hasTableTag) {
+                return line;
+            }
+
             // 0. Nhận diện và render hình ảnh trích xuất từ Word gốc
             if (trimmedLine.startsWith("[IMAGE:") && trimmedLine.endsWith("]")) {
-                const base64Src = trimmedLine.substring(7, trimmedLine.length - 1);
-                return `<div style="text-align: center; margin: 15px 0;"><img src="${base64Src}" style="max-width: 100%; max-height: 250px; height: auto; border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); display: inline-block;"></div>`;
+                const inner = trimmedLine.substring(7, trimmedLine.length - 1);
+                let base64Src = inner;
+                let customStyle = "";
+                
+                const pipeIndex = inner.indexOf('|');
+                if (pipeIndex !== -1) {
+                    base64Src = inner.substring(0, pipeIndex);
+                    const styleParts = inner.substring(pipeIndex + 1).split(';');
+                    let wStyle = "";
+                    let hStyle = "";
+                    styleParts.forEach(part => {
+                        if (part.startsWith('width:')) wStyle = part;
+                        if (part.startsWith('height:')) hStyle = part;
+                    });
+                    if (wStyle && hStyle) {
+                        customStyle = `${wStyle}; ${hStyle};`;
+                    }
+                }
+                
+                const imgStyle = customStyle ? customStyle : "max-width: 100%; max-height: 250px; height: auto;";
+                return `<div style="text-align: center; margin: 15px 0;"><img src="${base64Src}" style="${imgStyle} border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); display: inline-block;"></div>`;
             }
 
             // 1. Quốc hiệu
@@ -570,6 +619,22 @@ window.Components = {
             // 5. Nơi nhận hoặc Kính gửi
             if ((trimmedLine.startsWith("Kính gửi:") || trimmedLine.startsWith("Kính gửi :") || trimmedLine.startsWith("KÍNH GỬI:")) && trimmedLine.length < 120) {
                 return `<div style="font-weight: bold; margin-top: 8px; margin-bottom: 8px;">${line}</div>`;
+            }
+
+            // 6. Định dạng chữ ký của người ký đơn lẻ ở cuối văn bản (Căn phải và căn giữa theo khối)
+            const isSignatureTitle = /^(GIÁM ĐỐC|PHÓ GIÁM ĐỐC|THỦ TRƯỞNG ĐƠN VỊ|GIÁM ĐỐC CHI NHÁNH MOBIFONE SERVICE MIỀN NAM|ĐẠI DIỆN CHI NHÁNH MOBIFONE SERVICE MIỀN NAM)(\b|$)/i.test(trimmedLine);
+            if (isSignatureTitle) {
+                inRightSignature = true;
+                return `<div style="text-align: center; margin-left: auto; margin-right: 20px; width: 300px; font-weight: bold; margin-top: 20px; font-size: 1.05em;">${line}</div>`;
+            }
+            
+            if (inRightSignature) {
+                if (trimmedLine === "") {
+                    return `<div></div>`;
+                } else {
+                    inRightSignature = false;
+                    return `<div style="text-align: center; margin-left: auto; margin-right: 20px; width: 300px; font-weight: bold; margin-top: 60px;">${line}</div>`;
+                }
             }
             
             // Mặc định
