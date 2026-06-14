@@ -84,3 +84,6 @@ Hãy thực hiện theo quy trình kiểm thử dưới đây để xác nhận 
 3. **Quét lỗi**: Bấm nút **"Tiến hành quét tài liệu ngay"** (Màu đỏ). Bạn sẽ thấy hiệu ứng thanh tiến trình chạy. Khi hoàn thành, backend sẽ phân tích các lỗi màu đỏ (`[RED:...]`) và trả về danh sách lỗi hiển thị trong bảng.
 4. **Đồng bộ hàng loạt**: Nhập các giá trị chuẩn hóa mới ở cột Thay thế -> Đảm bảo đã chọn **"Đồng bộ tất cả"** -> Nhấn **"Áp dụng & Đồng bộ hàng loạt"**. Backend sẽ xử lý sửa đổi toàn bộ các tệp tin chứa lỗi đó và cập nhật trạng thái hồ sơ sang `"Hoàn thành"`.
 5. **Xem trước & Xuất bản**: Chọn từng tệp tin ở dropdown preview để xem so sánh trực quan văn bản gốc và văn bản đã được chuẩn hóa. Nhấn **"Xuất Hồ Sơ Hoàn Chỉnh (.TXT)"** để tải tệp tin sạch đã được gỡ bỏ thẻ tag lỗi.
+
+
+<!-- Trigger rebuild vercel -->
