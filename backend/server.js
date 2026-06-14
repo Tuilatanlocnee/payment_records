@@ -4,117 +4,10 @@ const fs = require('fs');
 const path = require('path');
 const AdmZip = require('adm-zip');
 const mongoose = require('mongoose');
-const WordExtractor = require('word-extractor');
-const { execSync } = require('child_process');
-const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const docExtractor = new WordExtractor();
-
-// Phân tích file .doc (định dạng cũ 97-2003) sử dụng thư viện word-extractor
-async function parseDocToText(buffer) {
-  try {
-    const doc = await docExtractor.extract(buffer);
-    const headers = doc.getHeaders({ includeFooters: true }) || "";
-    const textboxes = doc.getTextboxes() || "";
-    const body = doc.getBody() || "";
-    
-    let fullText = "";
-    if (headers.trim()) {
-      fullText += headers.trim() + "\n\n";
-    }
-    if (textboxes.trim()) {
-      fullText += textboxes.trim() + "\n\n";
-    }
-    fullText += body;
-    
-    return fullText.normalize('NFC');
-  } catch (error) {
-    console.error("Lỗi khi phân tích tệp .doc:", error);
-    throw error;
-  }
-}
-
-// Chuyển đổi tệp .doc cũ sang tệp .docx mới bằng cách khởi chạy MS Word qua PowerShell (Windows only)
-async function convertDocToDocx(docBuffer) {
-  const tempDir = path.join(__dirname, 'temp');
-  if (!fs.existsSync(tempDir)) {
-    fs.mkdirSync(tempDir, { recursive: true });
-  }
-  
-  const uniqueId = crypto.randomBytes(8).toString('hex');
-  const tempInputPath = path.resolve(tempDir, `temp_${uniqueId}.doc`);
-  const tempOutputPath = path.resolve(tempDir, `temp_${uniqueId}.docx`);
-  
-  fs.writeFileSync(tempInputPath, docBuffer);
-  
-  try {
-    // Script PowerShell thực hiện chuyển đổi định dạng
-    const psScript = `
-      $ErrorActionPreference = 'Stop';
-      try {
-        $word = New-Object -ComObject Word.Application;
-        $word.Visible = $false;
-        $word.DisplayAlerts = 0;
-        $word.AutomationSecurity = 3;
-        $doc = $word.Documents.Open('${tempInputPath.replace(/'/g, "''")}', $false, $true);
-        $doc.SaveAs('${tempOutputPath.replace(/'/g, "''")}', 16);
-        $doc.Close();
-        $word.Quit();
-        [System.Runtime.Interopservices.Marshal]::ReleaseComObject($word) | Out-Null;
-      } catch {
-        if ($word) {
-          $word.DisplayAlerts = 0;
-          $word.Quit();
-          [System.Runtime.Interopservices.Marshal]::ReleaseComObject($word) | Out-Null;
-        }
-        throw $_;
-      }
-    `;
-    
-    // Lưu script ra file .ps1 tạm thời để tránh lỗi escape ký tự trên dòng lệnh CLI
-    const tempPs1Path = path.resolve(tempDir, `temp_${uniqueId}.ps1`);
-    fs.writeFileSync(tempPs1Path, psScript, 'utf-8');
-    
-    try {
-      // Thiết lập giới hạn thời gian (timeout) 60 giây để tránh treo Event Loop vĩnh viễn nếu Word bị đơ
-      execSync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${tempPs1Path}"`, { 
-        stdio: 'ignore',
-        timeout: 60000 
-      });
-    } catch (execErr) {
-      if (execErr.code === 'ETIMEDOUT' || execErr.signal === 'SIGTERM') {
-        console.error("Lỗi: Quá trình chuyển đổi .doc sang .docx bằng Word COM bị quá thời gian chờ (timeout) 60 giây.");
-        throw new Error("Quá trình chuyển đổi tài liệu bằng Word COM bị quá thời gian chờ (timeout).");
-      }
-      throw execErr;
-    } finally {
-      if (fs.existsSync(tempPs1Path)) {
-        fs.unlinkSync(tempPs1Path);
-      }
-    }
-    
-    if (fs.existsSync(tempOutputPath)) {
-      const docxBuffer = fs.readFileSync(tempOutputPath);
-      return docxBuffer;
-    } else {
-      throw new Error("Không tìm thấy tệp .docx được sinh ra.");
-    }
-  } catch (err) {
-    console.error("Lỗi khi convert .doc sang .docx bằng Word COM:", err);
-    throw err;
-  } finally {
-    // Dọn dẹp tệp tin tạm
-    try {
-      if (fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath);
-      if (fs.existsSync(tempOutputPath)) fs.unlinkSync(tempOutputPath);
-    } catch (e) {
-      console.warn("Lỗi dọn dẹp file tạm:", e);
-    }
-  }
-}
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' })); // Tăng giới hạn tải trọng để upload file base64 lớn
@@ -682,6 +575,11 @@ app.post('/api/profiles/:id/files', async (req, res) => {
     let originalBase64 = null;
     const lowercaseName = fileName.toLowerCase();
     
+    // Kiểm tra định dạng file và chặn file .doc cũ
+    if (lowercaseName.endsWith('.doc')) {
+      return res.status(400).json({ error: "Hệ thống đã chuẩn hóa chỉ nhận file .docx. Vui lòng Save As tài liệu của bạn sang định dạng .docx trước khi tải lên." });
+    }
+
     // Tự động giải nén và trích xuất tệp .docx thành văn bản thuần
     if (lowercaseName.endsWith('.docx') && content && content.startsWith('data:')) {
       try {
@@ -693,34 +591,15 @@ app.post('/api/profiles/:id/files', async (req, res) => {
         console.warn("Lỗi khi parse file docx, tự động chuyển về sinh nội dung giả lập:", err);
         finalContent = generateServerSimulatedContent(fileName);
       }
-    } else if (lowercaseName.endsWith('.doc') && content && content.startsWith('data:')) {
-      // Trích xuất tệp .doc cũ sử dụng word-extractor từ dữ liệu base64 thực tế
-      try {
-        const base64Data = content.split(';base64,').pop();
-        const buffer = Buffer.from(base64Data, 'base64');
-        
-        try {
-          // Thử convert .doc sang .docx bằng MS Word COM qua PowerShell
-          const docxBuffer = await convertDocToDocx(buffer);
-          originalBase64 = docxBuffer.toString('base64');
-          finalContent = parseDocxToText(docxBuffer);
-          
-          // Cập nhật đuôi file hiển thị thành .docx
-          const dotIndex = fileName.lastIndexOf('.');
-          const baseName = dotIndex !== -1 ? fileName.substring(0, dotIndex) : fileName;
-          fileName = `${baseName}.docx`;
-        } catch (convErr) {
-          console.warn("Không thể convert .doc sang .docx, dùng extractor text thuần làm fallback:", convErr);
-          originalBase64 = base64Data;
-          finalContent = await parseDocToText(buffer);
-        }
-      } catch (err) {
-        console.warn("Lỗi khi parse file doc, tự động chuyển về sinh nội dung giả lập:", err);
-        finalContent = generateServerSimulatedContent(fileName);
-      }
+    } else if (lowercaseName.endsWith('.txt') && content) {
+      // Cho phép tệp văn bản thuần
+      finalContent = content;
     } else if (!content) {
       // Với file rỗng, sinh dữ liệu giả lập sạch
       finalContent = generateServerSimulatedContent(fileName);
+    } else {
+      // Bất kỳ định dạng không hỗ trợ khác
+      return res.status(400).json({ error: "Định dạng file không được hỗ trợ. Hệ thống chỉ nhận file .docx hoặc .txt." });
     }
 
     // Kiểm tra trùng tên file cuối cùng trong hồ sơ
@@ -1035,25 +914,9 @@ app.get('/api/profiles/:id/export', async (req, res) => {
           zip.addFile(exportName, createMinimalDocx(file.currentContent));
         }
       } else if (isDoc && file.originalBase64) {
-        // Tệp Word cũ (.doc) có dữ liệu gốc, thử convert sang .docx qua COM rồi thay thế XML
-        try {
-          const docBuffer = Buffer.from(file.originalBase64, 'base64');
-          // Chuyển đổi thành đệm .docx
-          const docxBuffer = await convertDocToDocx(docBuffer);
-          const docxZip = new AdmZip(docxBuffer);
-          let documentXml = docxZip.readAsText('word/document.xml');
-          if (documentXml) {
-            documentXml = replaceTextInDocxXml(documentXml, profile.replacements || []);
-            docxZip.updateFile('word/document.xml', Buffer.from(documentXml, 'utf-8'));
-            zip.addFile(exportName, docxZip.toBuffer());
-          } else {
-            zip.addFile(exportName, createMinimalDocx(file.currentContent));
-          }
-        } catch (err) {
-          console.error(`Lỗi khi convert và xử lý đồng bộ tệp .doc ${file.name}:`, err);
-          // Fallback tạo file docx tối giản từ văn bản thuần nếu lỗi
-          zip.addFile(exportName, createMinimalDocx(file.currentContent));
-        }
+        // Tệp Word cũ (.doc) có dữ liệu gốc
+        // Vì chạy trên môi trường Linux không hỗ trợ Word COM, hệ thống tự động sinh tệp .docx tối giản từ văn bản đã thay thế
+        zip.addFile(exportName, createMinimalDocx(file.currentContent));
       } else if (extLower === '.docx' || extLower === '.doc') {
         // Tệp Word cũ (.doc) hoặc tệp giả lập thiếu Base64, sinh tệp Word (.docx) tối giản hợp lệ từ text thuần để đảm bảo mở được bình thường
         zip.addFile(exportName, createMinimalDocx(file.currentContent));

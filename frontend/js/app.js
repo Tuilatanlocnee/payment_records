@@ -609,10 +609,15 @@ async function handleUploadedFiles(filesList) {
         const file = filesList[i];
         const fileExtension = file.name.split('.').pop().toLowerCase();
 
+        if (fileExtension === 'doc') {
+            showToast(`Từ chối file "${file.name}": Hệ thống đã chuẩn hóa chỉ nhận file .docx. Vui lòng Save As sang .docx.`, 'danger');
+            continue;
+        }
+
         try {
             let content;
-            if (fileExtension === 'docx' || fileExtension === 'doc') {
-                // Đọc file docx hoặc doc dưới dạng Base64 để backend tự giải nén và trích xuất
+            if (fileExtension === 'docx') {
+                // Đọc file docx dưới dạng Base64 để backend tự giải nén và trích xuất
                 content = await readFileAsDataURL(file);
             } else {
                 // Các tệp text thông thường

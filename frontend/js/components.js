@@ -144,8 +144,8 @@ window.Components = {
                 <div class="upload-dropzone" id="file-dropzone">
                     <i data-lucide="upload-cloud" style="width: 40px; height: 40px;"></i>
                     <p>Kéo và thả các tài liệu cần thanh toán vào đây hoặc <strong>bấm để chọn file</strong></p>
-                    <small style="color: var(--text-muted);">Hỗ trợ các file văn bản (.txt, .doc, .docx).</small>
-                    <input type="file" id="file-input-hidden" class="hidden" multiple accept=".txt,.doc,.docx">
+                    <small style="color: var(--text-muted);">Hỗ trợ định dạng .docx, .txt (Hệ thống đã chuẩn hóa không nhận file .doc cũ).</small>
+                    <input type="file" id="file-input-hidden" class="hidden" multiple accept=".txt,.docx">
                 </div>
 
 
