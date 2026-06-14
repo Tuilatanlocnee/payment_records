@@ -224,3 +224,5 @@ window.AppStore = {
         return updatedProfile;
     }
 };
+
+// Cập nhật cấu hình build tĩnh cho Vercel
