@@ -4,7 +4,7 @@
   "description": "Frontend client for MobiFone payment records system",
   "scripts": {
     "dev": "vite --port 5173 --host",
-    "build": "vite build"
+    "build": "mkdir -p dist && cp -r css js index.html MobiFone_logo.svg.png dist/"
   },
   "devDependencies": {
     "vite": "^5.2.0"
