@@ -160,9 +160,14 @@ window.Components = {
                 ${this.renderSearchBlock(profile)}
             </div>
 
-            <!-- Khối 3: Trình xem trước (Split Preview) & Xuất hồ sơ hoàn chỉnh -->
-            <div class="card ${hasReplacements || (activeSearchQuery && activeSearchQuery.trim() !== '') ? '' : 'hidden'}" id="card-preview-section">
+            <!-- Khối 3: Trình Xem Trước So Sánh Song Song (Split Preview) -->
+            <div class="card ${profile.files && profile.files.length > 0 ? '' : 'hidden'}" id="card-preview-section">
                 ${this.renderPreviewBlock(profile, activeSearchQuery)}
+            </div>
+
+            <!-- Khối 4: Tải xuống hồ sơ hoàn chỉnh -->
+            <div class="card" id="card-export-section">
+                ${this.renderExportBlock(profile)}
             </div>
         `;
 
@@ -343,7 +348,94 @@ window.Components = {
     },
 
     /**
-     * Dựng nội dung khu vực xem trước (Preview) và Xuất file
+     * Dựng nội dung khu vực Xuất file
+     */
+    renderExportBlock(profile) {
+        if (!profile.files || profile.files.length === 0) return '';
+
+        return `
+            <div class="card-title">
+                <i data-lucide="download-cloud" style="color: var(--primary-color);"></i>
+                Tải Xuống Hồ Sơ Hoàn Chỉnh
+            </div>
+            <div class="export-options-container" style="margin-top: 0; padding-top: 0; border-top: none;">
+                <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 16px;">
+                    Chọn các tùy chọn bên dưới để đóng gói toàn bộ tài liệu đã chỉnh sửa trong hồ sơ này thành một tệp nén ZIP duy nhất.
+                </p>
+                
+                <div class="export-cards">
+                    <!-- Option 1: Xuất toàn bộ -->
+                    <div class="export-card active" data-mode="all" id="export-card-all">
+                        <div class="export-card-icon">
+                            <i data-lucide="folder-archive"></i>
+                        </div>
+                        <div style="flex: 1; min-width: 0;">
+                            <h4 class="export-card-title">Xuất toàn bộ hồ sơ</h4>
+                            <p class="export-card-desc">Tải về tất cả tài liệu trong hồ sơ (bao gồm cả các file không chứa từ khóa tìm kiếm).</p>
+                        </div>
+                        <input type="radio" name="export-mode" value="all" checked style="margin-top: 5px; accent-color: var(--primary-color); cursor: pointer;">
+                    </div>
+
+                    <!-- Option 2: Chỉ file chỉnh sửa -->
+                    <div class="export-card" data-mode="edited" id="export-card-edited">
+                        <div class="export-card-icon">
+                            <i data-lucide="file-check"></i>
+                        </div>
+                        <div style="flex: 1; min-width: 0;">
+                            <h4 class="export-card-title">Chỉ xuất file chỉnh sửa</h4>
+                            <p class="export-card-desc">Chỉ tải về những tài liệu đã được thay thế nội dung (các file có chỉnh sửa).</p>
+                        </div>
+                        <input type="radio" name="export-mode" value="edited" style="margin-top: 5px; accent-color: var(--primary-color); cursor: pointer;">
+                    </div>
+
+                    <!-- Option 3: Tự chọn file xuất bản -->
+                    <div class="export-card" data-mode="custom" id="export-card-custom">
+                        <div class="export-card-icon">
+                            <i data-lucide="check-square"></i>
+                        </div>
+                        <div style="flex: 1; min-width: 0;">
+                            <h4 class="export-card-title">Tự chọn tài liệu xuất bản</h4>
+                            <p class="export-card-desc">Chọn thủ công từng tài liệu cụ thể bạn muốn đóng gói và tải về.</p>
+                        </div>
+                        <input type="radio" name="export-mode" value="custom" style="margin-top: 5px; accent-color: var(--primary-color); cursor: pointer;">
+                    </div>
+                </div>
+
+                <!-- Vùng hiển thị danh sách các file để tự chọn (mặc định ẩn) -->
+                <div id="custom-files-select-container" class="custom-files-select-container hidden">
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 8px;">
+                        <span style="font-size: 15px; font-weight: 600; color: var(--text-primary);">Danh sách tài liệu trong hồ sơ:</span>
+                        <div style="display: flex; gap: 10px;">
+                            <button type="button" id="btn-export-select-all" style="background: none; border: none; color: var(--primary-color); font-size: 14px; font-weight: 600; cursor: pointer;">Chọn tất cả</button>
+                            <span style="color: var(--border-color);">|</span>
+                            <button type="button" id="btn-export-deselect-all" style="background: none; border: none; color: var(--text-secondary); font-size: 14px; font-weight: 600; cursor: pointer;">Bỏ chọn hết</button>
+                        </div>
+                    </div>
+                    <ul class="custom-export-list">
+                        ${profile.files.map(file => `
+                            <li class="custom-export-item" data-file-id="${file.id}">
+                                <input type="checkbox" class="export-file-checkbox" value="${file.id}" checked>
+                                <i data-lucide="file-text" style="width: 16px; height: 16px;"></i>
+                                <span title="${file.name}">${file.name}</span>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+
+                <!-- Nút xuất bản chính thức -->
+                <div style="display: flex; justify-content: flex-end; align-items: center; gap: 16px;">
+                    <span id="export-status-info" style="font-size: 14px; color: var(--text-secondary);"></span>
+                    <button class="btn btn-success" id="btn-submit-export" style="height: 48px; padding: 0 28px;">
+                        <i data-lucide="download"></i>
+                        Tải Xuống Hồ Sơ (.ZIP)
+                    </button>
+                </div>
+            </div>
+        `;
+    },
+
+    /**
+     * Dựng nội dung khu vực xem trước (Preview)
      */
     renderPreviewBlock(profile, activeSearchQuery = "") {
         if (!profile.files || profile.files.length === 0) return '';
@@ -355,11 +447,6 @@ window.Components = {
             displayFiles = profile.files.filter(file => 
                 cleanString(file.currentContent).includes(normalizedQuery) ||
                 cleanString(file.originalContent).includes(normalizedQuery)
-            );
-        } else if (profile.replacements && profile.replacements.length > 0) {
-            // Chỉ hiển thị những file thực tế đã được chỉnh sửa
-            displayFiles = profile.files.filter(file => 
-                file.currentContent !== file.originalContent
             );
         }
 
@@ -375,7 +462,7 @@ window.Components = {
         return `
             <div class="card-title">
                 <i data-lucide="eye" style="color: var(--primary-color);"></i>
-                Trình Xem Trước & Xuất Bản Ghi Hoàn Chỉnh
+                Trình Xem Trước So Sánh Song Song (Split Preview)
             </div>
             <div class="preview-pane-wrapper">
                 <div class="preview-selector">
@@ -409,96 +496,23 @@ window.Components = {
                         </div>
                     </div>
                 </div>
-
-                <!-- Footer chứa lựa chọn hình thức xuất bản và nút tải tệp ZIP duy nhất -->
-                <div class="export-options-container">
-                    <h3 class="export-section-title" style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
-                        <i data-lucide="download-cloud" style="color: var(--primary-color);"></i>
-                        Tùy chọn xuất hồ sơ thanh toán
-                    </h3>
-                    
-                    <div class="export-cards">
-                        <!-- Option 1: Xuất toàn bộ -->
-                        <div class="export-card active" data-mode="all" id="export-card-all">
-                            <div class="export-card-icon">
-                                <i data-lucide="folder-archive"></i>
-                            </div>
-                            <div style="flex: 1; min-width: 0;">
-                                <h4 class="export-card-title">Xuất toàn bộ hồ sơ</h4>
-                                <p class="export-card-desc">Tải về tất cả tài liệu trong hồ sơ (bao gồm cả các file không chứa từ khóa tìm kiếm).</p>
-                            </div>
-                            <input type="radio" name="export-mode" value="all" checked style="margin-top: 5px; accent-color: var(--primary-color); cursor: pointer;">
-                        </div>
-
-                        <!-- Option 2: Chỉ file chỉnh sửa -->
-                        <div class="export-card" data-mode="edited" id="export-card-edited">
-                            <div class="export-card-icon">
-                                <i data-lucide="file-check"></i>
-                            </div>
-                            <div style="flex: 1; min-width: 0;">
-                                <h4 class="export-card-title">Chỉ xuất file chỉnh sửa</h4>
-                                <p class="export-card-desc">Chỉ tải về những tài liệu đã được thay thế nội dung (các file có chỉnh sửa).</p>
-                            </div>
-                            <input type="radio" name="export-mode" value="edited" style="margin-top: 5px; accent-color: var(--primary-color); cursor: pointer;">
-                        </div>
-
-                        <!-- Option 3: Tự chọn file xuất bản -->
-                        <div class="export-card" data-mode="custom" id="export-card-custom">
-                            <div class="export-card-icon">
-                                <i data-lucide="check-square"></i>
-                            </div>
-                            <div style="flex: 1; min-width: 0;">
-                                <h4 class="export-card-title">Tự chọn tài liệu xuất bản</h4>
-                                <p class="export-card-desc">Chọn thủ công từng tài liệu cụ thể bạn muốn đóng gói và tải về.</p>
-                            </div>
-                            <input type="radio" name="export-mode" value="custom" style="margin-top: 5px; accent-color: var(--primary-color); cursor: pointer;">
-                        </div>
-                    </div>
-
-                    <!-- Vùng hiển thị danh sách các file để tự chọn (mặc định ẩn) -->
-                    <div id="custom-files-select-container" class="custom-files-select-container hidden">
-                        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 8px;">
-                            <span style="font-size: 15px; font-weight: 600; color: var(--text-primary);">Danh sách tài liệu trong hồ sơ:</span>
-                            <div style="display: flex; gap: 10px;">
-                                <button type="button" id="btn-export-select-all" style="background: none; border: none; color: var(--primary-color); font-size: 14px; font-weight: 600; cursor: pointer;">Chọn tất cả</button>
-                                <span style="color: var(--border-color);">|</span>
-                                <button type="button" id="btn-export-deselect-all" style="background: none; border: none; color: var(--text-secondary); font-size: 14px; font-weight: 600; cursor: pointer;">Bỏ chọn hết</button>
-                            </div>
-                        </div>
-                        <ul class="custom-export-list">
-                            ${profile.files.map(file => `
-                                <li class="custom-export-item" data-file-id="${file.id}">
-                                    <input type="checkbox" class="export-file-checkbox" value="${file.id}" checked>
-                                    <i data-lucide="file-text" style="width: 16px; height: 16px;"></i>
-                                    <span title="${file.name}">${file.name}</span>
-                                </li>
-                            `).join('')}
-                        </ul>
-                    </div>
-
-                    <!-- Nút xuất bản chính thức -->
-                    <div style="display: flex; justify-content: flex-end; align-items: center; gap: 16px;">
-                        <span id="export-status-info" style="font-size: 14px; color: var(--text-secondary);"></span>
-                        <button class="btn btn-success" id="btn-submit-export" style="height: 48px; padding: 0 28px;">
-                            <i data-lucide="download"></i>
-                            Tải Xuống Hồ Sơ (.ZIP)
-                        </button>
-                    </div>
-                </div>
             </div>
         `;
     },
 
+    /**
+     * Định dạng nội dung văn bản hiển thị trong khung Xem trước
+     */
     formatContentForPreview(content, type, replacements = [], activeSearchQuery = "") {
         if (!content) return '';
         
-        // Normalize Unicode NFC để đồng nhất ký tự tiếng Việt
+        // Chuẩn hóa Unicode NFC để đồng nhất kí tự tiếng Việt
         let escaped = content.normalize('NFC')
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;");
 
-        // Phục hồi lại các thẻ bảng HTML được sinh bởi Parser của Backend
+        // Khôi phục lại các thẻ bảng HTML được sinh từ Parser của Backend
         escaped = escaped
             .replace(/&lt;table class=&quot;docx-table&quot;&gt;/g, '<table class="docx-table">')
             .replace(/&lt;table&gt;/g, '<table>')
@@ -543,7 +557,7 @@ window.Components = {
             }
         }
 
-        // Highlight từ khóa đang tìm kiếm tạm thời bằng màu vàng nhạt (chưa thay thế, tránh trong thẻ HTML)
+        // Highlight từ khóa đang tìm kiếm tạm thời bằng màu vàng nhạt (tránh trong thẻ HTML)
         if (activeSearchQuery && activeSearchQuery.trim() !== "") {
             const normalizedSearch = activeSearchQuery.normalize('NFC');
             const escapedSearch = normalizedSearch.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -602,7 +616,7 @@ window.Components = {
             if (upperLine.includes("ĐỘC LẬP - TỰ DO - HẠNH PHÚC") || trimmedLine === "Độc lập - Tự do - Hạnh phúc") {
                 return `<div style="text-align: center; font-weight: bold; margin-bottom: 15px;">${line}</div>`;
             }
-            // 3. Tiêu đề chính (BÁO CÁO, TỜ TRÌNH, BIÊN BẢN, v.v. - viết hoa hoàn toàn và ngắn)
+            // 3. Tiêu đề chính (BÁO CÁO, TỜ TRÌNH, BIÊN BẢN, v.v.)
             const isTitleKeyword = /^(BÁO CÁO|TỜ TRÌNH|BIÊN BẢN|QUYẾT ĐỊNH|KẾ HOẠCH|CÔNG VĂN|ĐỀ NGHỊ|DANH SÁCH|THÔNG BÁO|HỢP ĐỒNG)(\b|$)/i.test(trimmedLine);
             if (isTitleKeyword && trimmedLine.length < 100 && trimmedLine === upperLine) {
                 return `<div style="text-align: center; font-weight: bold; margin-top: 15px; margin-bottom: 5px; font-size: 1.15em; color: var(--primary-color);">${line}</div>`;

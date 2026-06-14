@@ -3,14 +3,156 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const AdmZip = require('adm-zip');
+const mongoose = require('mongoose');
+const WordExtractor = require('word-extractor');
+const { execSync } = require('child_process');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const DB_FILE = path.join(__dirname, 'db.json');
+const docExtractor = new WordExtractor();
+
+// Phân tích file .doc (định dạng cũ 97-2003) sử dụng thư viện word-extractor
+async function parseDocToText(buffer) {
+  try {
+    const doc = await docExtractor.extract(buffer);
+    const headers = doc.getHeaders({ includeFooters: true }) || "";
+    const textboxes = doc.getTextboxes() || "";
+    const body = doc.getBody() || "";
+    
+    let fullText = "";
+    if (headers.trim()) {
+      fullText += headers.trim() + "\n\n";
+    }
+    if (textboxes.trim()) {
+      fullText += textboxes.trim() + "\n\n";
+    }
+    fullText += body;
+    
+    return fullText.normalize('NFC');
+  } catch (error) {
+    console.error("Lỗi khi phân tích tệp .doc:", error);
+    throw error;
+  }
+}
+
+// Chuyển đổi tệp .doc cũ sang tệp .docx mới bằng cách khởi chạy MS Word qua PowerShell (Windows only)
+async function convertDocToDocx(docBuffer) {
+  const tempDir = path.join(__dirname, 'temp');
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir, { recursive: true });
+  }
+  
+  const uniqueId = crypto.randomBytes(8).toString('hex');
+  const tempInputPath = path.resolve(tempDir, `temp_${uniqueId}.doc`);
+  const tempOutputPath = path.resolve(tempDir, `temp_${uniqueId}.docx`);
+  
+  fs.writeFileSync(tempInputPath, docBuffer);
+  
+  try {
+    // Script PowerShell thực hiện chuyển đổi định dạng
+    const psScript = `
+      $ErrorActionPreference = 'Stop';
+      try {
+        $word = New-Object -ComObject Word.Application;
+        $word.Visible = $false;
+        $word.DisplayAlerts = 0;
+        $word.AutomationSecurity = 3;
+        $doc = $word.Documents.Open('${tempInputPath.replace(/'/g, "''")}', $false, $true);
+        $doc.SaveAs('${tempOutputPath.replace(/'/g, "''")}', 16);
+        $doc.Close();
+        $word.Quit();
+        [System.Runtime.Interopservices.Marshal]::ReleaseComObject($word) | Out-Null;
+      } catch {
+        if ($word) {
+          $word.DisplayAlerts = 0;
+          $word.Quit();
+          [System.Runtime.Interopservices.Marshal]::ReleaseComObject($word) | Out-Null;
+        }
+        throw $_;
+      }
+    `;
+    
+    // Lưu script ra file .ps1 tạm thời để tránh lỗi escape ký tự trên dòng lệnh CLI
+    const tempPs1Path = path.resolve(tempDir, `temp_${uniqueId}.ps1`);
+    fs.writeFileSync(tempPs1Path, psScript, 'utf-8');
+    
+    try {
+      // Thiết lập giới hạn thời gian (timeout) 60 giây để tránh treo Event Loop vĩnh viễn nếu Word bị đơ
+      execSync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${tempPs1Path}"`, { 
+        stdio: 'ignore',
+        timeout: 60000 
+      });
+    } catch (execErr) {
+      if (execErr.code === 'ETIMEDOUT' || execErr.signal === 'SIGTERM') {
+        console.error("Lỗi: Quá trình chuyển đổi .doc sang .docx bằng Word COM bị quá thời gian chờ (timeout) 60 giây.");
+        throw new Error("Quá trình chuyển đổi tài liệu bằng Word COM bị quá thời gian chờ (timeout).");
+      }
+      throw execErr;
+    } finally {
+      if (fs.existsSync(tempPs1Path)) {
+        fs.unlinkSync(tempPs1Path);
+      }
+    }
+    
+    if (fs.existsSync(tempOutputPath)) {
+      const docxBuffer = fs.readFileSync(tempOutputPath);
+      return docxBuffer;
+    } else {
+      throw new Error("Không tìm thấy tệp .docx được sinh ra.");
+    }
+  } catch (err) {
+    console.error("Lỗi khi convert .doc sang .docx bằng Word COM:", err);
+    throw err;
+  } finally {
+    // Dọn dẹp tệp tin tạm
+    try {
+      if (fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath);
+      if (fs.existsSync(tempOutputPath)) fs.unlinkSync(tempOutputPath);
+    } catch (e) {
+      console.warn("Lỗi dọn dẹp file tạm:", e);
+    }
+  }
+}
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' })); // Tăng giới hạn tải trọng để upload file base64 lớn
+
+// Kết nối MongoDB
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/payment_records';
+mongoose.connect(MONGODB_URI)
+  .then(() => console.log('Connected to MongoDB successfully!'))
+  .catch(err => console.error('MongoDB connection error:', err));
+
+// Định nghĩa Schema & Model Mongoose
+const profileSchema = new mongoose.Schema({
+  name: { type: String, required: true, trim: true },
+  createdAt: { type: Date, default: Date.now },
+  status: { type: String, enum: ['new', 'completed', 'scanning'], default: 'new' },
+  replacements: [{
+    findText: String,
+    replaceText: String
+  }]
+});
+
+const fileSchema = new mongoose.Schema({
+  profileId: { type: mongoose.Schema.Types.ObjectId, ref: 'Profile', required: true },
+  name: { type: String, required: true, trim: true },
+  size: { type: Number, default: 0 },
+  originalContent: { type: String, required: true },
+  currentContent: { type: String, required: true },
+  originalBase64: { type: String, default: null }
+});
+
+const settingSchema = new mongoose.Schema({
+  key: { type: String, required: true, unique: true },
+  value: mongoose.Schema.Types.Mixed
+});
+
+const Profile = mongoose.model('Profile', profileSchema);
+const File = mongoose.model('File', fileSchema);
+const Setting = mongoose.model('Setting', settingSchema);
 
 
 // Giải mã thực thể XML cơ bản
@@ -208,8 +350,6 @@ function createMinimalDocx(text) {
   }
 }
 
-
-
 // Hàm phân tích một đoạn văn <w:p> từ cấu trúc XML Word
 function parseParagraph(paragraphXml, relsMap, zip) {
   const paragraphRegex = /<w:p\b[^>]*>([\s\S]*?)<\/w:p>/;
@@ -403,94 +543,127 @@ Nội dung thanh toán: Chi phí thực hiện dịch vụ bảo trì kỹ thu�
 Kính mong Ban Giám đốc MobiFone phê duyệt quyết toán.`;
 }
 
-// Đọc và lưu cơ sở dữ liệu db.json
-function readDatabase() {
-  try {
-    if (!fs.existsSync(DB_FILE)) {
-      const initialData = {
-        profiles: [],
-        activeProfileId: null
-      };
-      fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2), 'utf-8');
-      return initialData;
-    }
-    const rawData = fs.readFileSync(DB_FILE, 'utf-8');
-    return JSON.parse(rawData);
-  } catch (error) {
-    console.error("Lỗi khi đọc file database:", error);
-    return { profiles: [], activeProfileId: null };
-  }
-}
-
-function writeDatabase(data) {
-  try {
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
-  } catch (error) {
-    console.error("Lỗi khi ghi file database:", error);
-  }
-}
 
 /**
  * ==========================================================================
- * ROUTING API
+ * ROUTING API (MONGODB IMPLEMENTATION)
  * ==========================================================================
  */
 
 // Lấy danh sách hồ sơ
-app.get('/api/profiles', (req, res) => {
-  const db = readDatabase();
-  res.json({
-    profiles: db.profiles,
-    activeProfileId: db.activeProfileId
-  });
+app.get('/api/profiles', async (req, res) => {
+  try {
+    const dbProfiles = await Profile.find().sort({ createdAt: -1 }).lean();
+    const dbSetting = await Setting.findOne({ key: 'activeProfileId' }).lean();
+    
+    // Ghép files tương ứng vào từng profile
+    const profilesWithFiles = await Promise.all(dbProfiles.map(async (p) => {
+      const files = await File.find({ profileId: p._id }).lean();
+      const formattedFiles = files.map(f => ({
+        id: f._id.toString(),
+        name: f.name,
+        size: f.size,
+        originalContent: f.originalContent,
+        currentContent: f.currentContent,
+        originalBase64: f.originalBase64
+      }));
+      return {
+        id: p._id.toString(),
+        name: p.name,
+        createdAt: p.createdAt,
+        status: p.status,
+        replacements: p.replacements,
+        files: formattedFiles
+      };
+    }));
+
+    res.json({
+      profiles: profilesWithFiles,
+      activeProfileId: dbSetting ? dbSetting.value : null
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Lỗi khi lấy danh sách hồ sơ." });
+  }
 });
 
 // Thiết lập hồ sơ đang được chọn
-app.post('/api/profiles/active', (req, res) => {
+app.post('/api/profiles/active', async (req, res) => {
   const { profileId } = req.body;
-  const db = readDatabase();
-  db.activeProfileId = profileId;
-  writeDatabase(db);
-  res.json({ success: true, activeProfileId: db.activeProfileId });
+  try {
+    await Setting.findOneAndUpdate(
+      { key: 'activeProfileId' },
+      { value: profileId },
+      { upsert: true, returnDocument: 'after' }
+    );
+    res.json({ success: true, activeProfileId: profileId });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Lỗi khi đặt hồ sơ kích hoạt." });
+  }
 });
 
 // Tạo hồ sơ mới
-app.post('/api/profiles', (req, res) => {
+app.post('/api/profiles', async (req, res) => {
   const { name } = req.body;
   if (!name || name.trim() === "") {
     return res.status(400).json({ error: "Tên hồ sơ không được để trống." });
   }
 
-  const db = readDatabase();
-  const newProfile = {
-    id: "profile-" + Date.now(),
-    name: name.trim(),
-    createdAt: new Date().toISOString(),
-    status: "new",
-    replacements: [],
-    files: []
-  };
+  try {
+    const newProfile = new Profile({
+      name: name.trim(),
+      status: "new",
+      replacements: []
+    });
+    const savedProfile = await newProfile.save();
+    
+    // Đặt hồ sơ vừa tạo làm active
+    await Setting.findOneAndUpdate(
+      { key: 'activeProfileId' },
+      { value: savedProfile._id.toString() },
+      { upsert: true, returnDocument: 'after' }
+    );
 
-  db.profiles.unshift(newProfile);
-  db.activeProfileId = newProfile.id;
-  writeDatabase(db);
-  res.status(201).json(newProfile);
+    res.status(201).json({
+      id: savedProfile._id.toString(),
+      name: savedProfile.name,
+      createdAt: savedProfile.createdAt,
+      status: savedProfile.status,
+      replacements: savedProfile.replacements,
+      files: []
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Lỗi khi tạo hồ sơ mới." });
+  }
 });
 
 // Xóa hồ sơ
-app.delete('/api/profiles/:id', (req, res) => {
+app.delete('/api/profiles/:id', async (req, res) => {
   const { id } = req.params;
-  const db = readDatabase();
-  db.profiles = db.profiles.filter(p => p.id !== id);
-  if (db.activeProfileId === id) {
-    db.activeProfileId = null;
+  try {
+    await Profile.findByIdAndDelete(id);
+    await File.deleteMany({ profileId: id });
+    
+    // Nếu hồ sơ bị xóa đang active, reset activeProfileId
+    const dbSetting = await Setting.findOne({ key: 'activeProfileId' });
+    if (dbSetting && dbSetting.value === id) {
+      await Setting.findOneAndUpdate(
+        { key: 'activeProfileId' },
+        { value: null },
+        { returnDocument: 'after' }
+      );
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Lỗi khi xóa hồ sơ." });
   }
-  writeDatabase(db);
-  res.json({ success: true });
 });
 
 // Thêm file vào hồ sơ
-app.post('/api/profiles/:id/files', (req, res) => {
+app.post('/api/profiles/:id/files', async (req, res) => {
   const { id } = req.params;
   const { name, size, content } = req.body;
 
@@ -498,85 +671,131 @@ app.post('/api/profiles/:id/files', (req, res) => {
     return res.status(400).json({ error: "Tên file không được trống." });
   }
 
-  const db = readDatabase();
-  const profile = db.profiles.find(p => p.id === id);
-  if (!profile) {
-    return res.status(404).json({ error: "Không tìm thấy hồ sơ thanh toán." });
-  }
-
-  const isDuplicate = profile.files.some(f => f.name === name);
-  if (isDuplicate) {
-    return res.status(400).json({ error: `File "${name}" đã tồn tại trong hồ sơ.` });
-  }
-
-  let finalContent = content || "";
-  let originalBase64 = null;
-  
-  // Tự động giải nén và trích xuất tệp .docx thành văn bản thuần
-  if (name.endsWith('.docx') && content && content.startsWith('data:')) {
-    try {
-      const base64Data = content.split(';base64,').pop();
-      originalBase64 = base64Data;
-      const buffer = Buffer.from(base64Data, 'base64');
-      finalContent = parseDocxToText(buffer);
-    } catch (err) {
-      console.warn("Lỗi khi parse file docx, tự động chuyển về sinh nội dung giả lập:", err);
-      finalContent = generateServerSimulatedContent(name);
+  try {
+    const profile = await Profile.findById(id);
+    if (!profile) {
+      return res.status(404).json({ error: "Không tìm thấy hồ sơ thanh toán." });
     }
-  } else if ((name.endsWith('.doc') || !content) && content && content.startsWith('data:')) {
-    // Với file .doc cũ hoặc file rỗng, sinh dữ liệu giả lập sạch
-    finalContent = generateServerSimulatedContent(name);
+
+    let fileName = name;
+    let finalContent = content || "";
+    let originalBase64 = null;
+    const lowercaseName = fileName.toLowerCase();
+    
+    // Tự động giải nén và trích xuất tệp .docx thành văn bản thuần
+    if (lowercaseName.endsWith('.docx') && content && content.startsWith('data:')) {
+      try {
+        const base64Data = content.split(';base64,').pop();
+        originalBase64 = base64Data;
+        const buffer = Buffer.from(base64Data, 'base64');
+        finalContent = parseDocxToText(buffer);
+      } catch (err) {
+        console.warn("Lỗi khi parse file docx, tự động chuyển về sinh nội dung giả lập:", err);
+        finalContent = generateServerSimulatedContent(fileName);
+      }
+    } else if (lowercaseName.endsWith('.doc') && content && content.startsWith('data:')) {
+      // Trích xuất tệp .doc cũ sử dụng word-extractor từ dữ liệu base64 thực tế
+      try {
+        const base64Data = content.split(';base64,').pop();
+        const buffer = Buffer.from(base64Data, 'base64');
+        
+        try {
+          // Thử convert .doc sang .docx bằng MS Word COM qua PowerShell
+          const docxBuffer = await convertDocToDocx(buffer);
+          originalBase64 = docxBuffer.toString('base64');
+          finalContent = parseDocxToText(docxBuffer);
+          
+          // Cập nhật đuôi file hiển thị thành .docx
+          const dotIndex = fileName.lastIndexOf('.');
+          const baseName = dotIndex !== -1 ? fileName.substring(0, dotIndex) : fileName;
+          fileName = `${baseName}.docx`;
+        } catch (convErr) {
+          console.warn("Không thể convert .doc sang .docx, dùng extractor text thuần làm fallback:", convErr);
+          originalBase64 = base64Data;
+          finalContent = await parseDocToText(buffer);
+        }
+      } catch (err) {
+        console.warn("Lỗi khi parse file doc, tự động chuyển về sinh nội dung giả lập:", err);
+        finalContent = generateServerSimulatedContent(fileName);
+      }
+    } else if (!content) {
+      // Với file rỗng, sinh dữ liệu giả lập sạch
+      finalContent = generateServerSimulatedContent(fileName);
+    }
+
+    // Kiểm tra trùng tên file cuối cùng trong hồ sơ
+    const isDuplicate = await File.findOne({ profileId: id, name: fileName });
+    if (isDuplicate) {
+      return res.status(400).json({ error: `File "${fileName}" đã tồn tại trong hồ sơ.` });
+    }
+
+    const newFile = new File({
+      profileId: id,
+      name: fileName,
+      size: size || 0,
+      originalContent: finalContent,
+      currentContent: finalContent,
+      originalBase64: originalBase64
+    });
+
+    const savedFile = await newFile.save();
+    
+    // Đặt trạng thái hồ sơ về "new"
+    profile.status = "new";
+    await profile.save();
+
+    res.status(201).json({
+      id: savedFile._id.toString(),
+      name: savedFile.name,
+      size: savedFile.size,
+      originalContent: savedFile.originalContent,
+      currentContent: savedFile.currentContent,
+      originalBase64: savedFile.originalBase64
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Lỗi khi tải lên tài liệu." });
   }
-
-  const newFile = {
-    id: "file-" + Date.now() + "-" + Math.random().toString(36).substr(2, 9),
-    name,
-    size: size || 0,
-    originalContent: finalContent,
-    currentContent: finalContent,
-    originalBase64: originalBase64
-  };
-
-  profile.files.push(newFile);
-  profile.status = "new"; // Đặt lại trạng thái chưa chỉnh sửa
-  writeDatabase(db);
-
-  res.status(201).json(newFile);
 });
 
 
 // Xóa file khỏi hồ sơ
-app.delete('/api/profiles/:id/files/:fileId', (req, res) => {
+app.delete('/api/profiles/:id/files/:fileId', async (req, res) => {
   const { id, fileId } = req.params;
-  const db = readDatabase();
-  const profile = db.profiles.find(p => p.id === id);
-  if (!profile) {
-    return res.status(404).json({ error: "Không tìm thấy hồ sơ thanh toán." });
-  }
+  try {
+    const profile = await Profile.findById(id);
+    if (!profile) {
+      return res.status(404).json({ error: "Không tìm thấy hồ sơ thanh toán." });
+    }
 
-  profile.files = profile.files.filter(f => f.id !== fileId);
-  if (profile.files.length === 0) {
-    profile.status = "new";
-  }
-  writeDatabase(db);
-  res.json({ success: true, files: profile.files });
-});
+    await File.findByIdAndDelete(fileId);
 
-// Endpoint quét (chỉ giữ lại để tương thích ngược nếu frontend gọi)
-app.post('/api/profiles/:id/scan', (req, res) => {
-  const { id } = req.params;
-  const db = readDatabase();
-  const profile = db.profiles.find(p => p.id === id);
-  if (!profile) {
-    return res.status(404).json({ error: "Không tìm thấy hồ sơ thanh toán." });
+    // Cập nhật lại status của profile nếu không còn file nào
+    const filesCount = await File.countDocuments({ profileId: id });
+    if (filesCount === 0) {
+      profile.status = "new";
+      await profile.save();
+    }
+
+    const remainingFiles = await File.find({ profileId: id }).lean();
+    const formattedFiles = remainingFiles.map(f => ({
+      id: f._id.toString(),
+      name: f.name,
+      size: f.size,
+      originalContent: f.originalContent,
+      currentContent: f.currentContent,
+      originalBase64: f.originalBase64
+    }));
+
+    res.json({ success: true, files: formattedFiles });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Lỗi khi xóa tài liệu." });
   }
-  profile.status = "scanned";
-  writeDatabase(db);
-  res.json(profile);
 });
 
 // API tìm kiếm và thay thế chuỗi văn bản hàng loạt
-app.post('/api/profiles/:id/replace', (req, res) => {
+app.post('/api/profiles/:id/replace', async (req, res) => {
   const { id } = req.params;
   const { findText, replaceText, targetFileIds } = req.body;
 
@@ -584,68 +803,112 @@ app.post('/api/profiles/:id/replace', (req, res) => {
     return res.status(400).json({ error: "Cụm từ cần tìm kiếm không được để trống." });
   }
 
-  const db = readDatabase();
-  const profile = db.profiles.find(p => p.id === id);
-  if (!profile) {
-    return res.status(404).json({ error: "Không tìm thấy hồ sơ thanh toán." });
-  }
-
-  // Khởi tạo lịch sử thay thế
-  if (!profile.replacements) {
-    profile.replacements = [];
-  }
-
-  // Lưu vào lịch sử để highlight trong preview
-  const isExist = profile.replacements.some(r => r.findText === findText && r.replaceText === replaceText);
-  if (!isExist) {
-    profile.replacements.push({ findText, replaceText });
-  }
-
-  // Thực hiện tìm kiếm và thay thế trong từng file được chọn
-  profile.files.forEach(file => {
-    if (targetFileIds.includes(file.id)) {
-      // Normalize NFC để đảm bảo ký tự tiếng Việt nhất quán trước khi so sánh
-      const normalizedContent = (file.currentContent || '').normalize('NFC');
-      const normalizedFind = findText.normalize('NFC');
-      const escapedFind = normalizedFind.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-      // Cho phép khớp linh hoạt bất kỳ khoảng trắng nào (kép, xuống dòng) khi thay thế
-      const regexPattern = escapedFind.replace(/\s+/g, '\\s+');
-      // Sử dụng flag 'g' để phân biệt chữ hoa và chữ thường theo yêu cầu của người dùng
-      const regex = new RegExp(regexPattern, 'g');
-      file.currentContent = normalizedContent.replace(regex, replaceText);
+  try {
+    const profile = await Profile.findById(id);
+    if (!profile) {
+      return res.status(404).json({ error: "Không tìm thấy hồ sơ thanh toán." });
     }
-  });
 
-  profile.status = "completed"; // Cập nhật trạng thái là đã chỉnh sửa thành công
-  writeDatabase(db);
+    // Khởi tạo lịch sử thay thế
+    if (!profile.replacements) {
+      profile.replacements = [];
+    }
 
-  res.json(profile);
+    // Lưu vào lịch sử để highlight
+    const isExist = profile.replacements.some(r => r.findText === findText && r.replaceText === replaceText);
+    if (!isExist) {
+      profile.replacements.push({ findText, replaceText });
+    }
+
+    // Thực hiện tìm kiếm và thay thế trong từng file được chọn
+    const files = await File.find({ profileId: id });
+    for (const file of files) {
+      if (targetFileIds.includes(file._id.toString())) {
+        const normalizedContent = (file.currentContent || '').normalize('NFC');
+        const normalizedFind = findText.normalize('NFC');
+        const escapedFind = normalizedFind.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+        const regexPattern = escapedFind.replace(/\s+/g, '\\s+');
+        const regex = new RegExp(regexPattern, 'g');
+        
+        file.currentContent = normalizedContent.replace(regex, replaceText);
+        await file.save();
+      }
+    }
+
+    profile.status = "completed"; // Cập nhật trạng thái là đã chỉnh sửa thành công
+    const savedProfile = await profile.save();
+
+    const updatedFiles = await File.find({ profileId: id }).lean();
+    const formattedFiles = updatedFiles.map(f => ({
+      id: f._id.toString(),
+      name: f.name,
+      size: f.size,
+      originalContent: f.originalContent,
+      currentContent: f.currentContent,
+      originalBase64: f.originalBase64
+    }));
+
+    res.json({
+      id: savedProfile._id.toString(),
+      name: savedProfile.name,
+      createdAt: savedProfile.createdAt,
+      status: savedProfile.status,
+      replacements: savedProfile.replacements,
+      files: formattedFiles
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Lỗi khi thực hiện thay thế đồng bộ." });
+  }
 });
 
 // API khôi phục tài liệu gốc và xóa lịch sử thay thế trong hồ sơ
-app.post('/api/profiles/:id/reset', (req, res) => {
+app.post('/api/profiles/:id/reset', async (req, res) => {
   const { id } = req.params;
-  const db = readDatabase();
-  const profile = db.profiles.find(p => p.id === id);
-  if (!profile) {
-    return res.status(404).json({ error: "Không tìm thấy hồ sơ thanh toán." });
+  try {
+    const profile = await Profile.findById(id);
+    if (!profile) {
+      return res.status(404).json({ error: "Không tìm thấy hồ sơ thanh toán." });
+    }
+
+    // Khôi phục currentContent về originalContent cho tất cả các file
+    const files = await File.find({ profileId: id });
+    for (const file of files) {
+      file.currentContent = file.originalContent;
+      await file.save();
+    }
+
+    // Xóa sạch lịch sử thay thế
+    profile.replacements = [];
+    profile.status = "new";
+    const savedProfile = await profile.save();
+
+    const updatedFiles = await File.find({ profileId: id }).lean();
+    const formattedFiles = updatedFiles.map(f => ({
+      id: f._id.toString(),
+      name: f.name,
+      size: f.size,
+      originalContent: f.originalContent,
+      currentContent: f.currentContent,
+      originalBase64: f.originalBase64
+    }));
+
+    res.json({
+      id: savedProfile._id.toString(),
+      name: savedProfile.name,
+      createdAt: savedProfile.createdAt,
+      status: savedProfile.status,
+      replacements: savedProfile.replacements,
+      files: formattedFiles
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Lỗi khi khôi phục tài liệu gốc." });
   }
-
-  // Khôi phục currentContent về originalContent cho tất cả các file
-  profile.files.forEach(file => {
-    file.currentContent = file.originalContent;
-  });
-
-  // Xóa sạch lịch sử thay thế
-  profile.replacements = [];
-  profile.status = "new";
-  
-  writeDatabase(db);
-  res.json(profile);
 });
 
 // API khôi phục (hoàn tác) một cụm từ đã thay thế trong hồ sơ
-app.post('/api/profiles/:id/undo-replace', (req, res) => {
+app.post('/api/profiles/:id/undo-replace', async (req, res) => {
   const { id } = req.params;
   const { findText, replaceText } = req.body;
 
@@ -653,75 +916,105 @@ app.post('/api/profiles/:id/undo-replace', (req, res) => {
     return res.status(400).json({ error: "Cụm từ gốc không được để trống." });
   }
 
-  const db = readDatabase();
-  const profile = db.profiles.find(p => p.id === id);
-  if (!profile) {
-    return res.status(404).json({ error: "Không tìm thấy hồ sơ thanh toán." });
-  }
-
-  // Xóa khỏi lịch sử replacements
-  if (profile.replacements) {
-    profile.replacements = profile.replacements.filter(r => !(r.findText === findText && r.replaceText === replaceText));
-  }
-
-  // Khôi phục lại cụm từ gốc trong tất cả các file của hồ sơ
-  profile.files.forEach(file => {
-    const normalizedContent = (file.currentContent || '').normalize('NFC');
-    const normalizedReplace = replaceText.normalize('NFC');
-    const cleanString = (str) => (str || '').normalize('NFC').toLowerCase().replace(/\s+/g, ' ');
-    if (cleanString(normalizedContent).includes(cleanString(normalizedReplace))) {
-      const escapedReplace = normalizedReplace.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-      const regexPattern = escapedReplace.replace(/\s+/g, '\\s+');
-      // Đổi về 'g' để phân biệt chữ hoa và chữ thường khi hoàn tác
-      const regex = new RegExp(regexPattern, 'g');
-      file.currentContent = normalizedContent.replace(regex, findText);
+  try {
+    const profile = await Profile.findById(id);
+    if (!profile) {
+      return res.status(404).json({ error: "Không tìm thấy hồ sơ thanh toán." });
     }
-  });
 
-  // Nếu không còn replacements nào, cập nhật lại status về "new"
-  if (!profile.replacements || profile.replacements.length === 0) {
-    profile.status = "new";
+    // Xóa khỏi lịch sử replacements
+    if (profile.replacements) {
+      profile.replacements = profile.replacements.filter(r => !(r.findText === findText && r.replaceText === replaceText));
+    }
+
+    // Khôi phục lại cụm từ gốc trong tất cả các file của hồ sơ
+    const files = await File.find({ profileId: id });
+    for (const file of files) {
+      const normalizedContent = (file.currentContent || '').normalize('NFC');
+      const normalizedReplace = replaceText.normalize('NFC');
+      const cleanString = (str) => (str || '').normalize('NFC').toLowerCase().replace(/\s+/g, ' ');
+      
+      if (cleanString(normalizedContent).includes(cleanString(normalizedReplace))) {
+        const escapedReplace = normalizedReplace.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+        const regexPattern = escapedReplace.replace(/\s+/g, '\\s+');
+        const regex = new RegExp(regexPattern, 'g');
+        file.currentContent = normalizedContent.replace(regex, findText);
+        await file.save();
+      }
+    }
+
+    // Nếu không còn replacements nào, cập nhật lại status về "new"
+    if (!profile.replacements || profile.replacements.length === 0) {
+      profile.status = "new";
+    }
+
+    const savedProfile = await profile.save();
+
+    const updatedFiles = await File.find({ profileId: id }).lean();
+    const formattedFiles = updatedFiles.map(f => ({
+      id: f._id.toString(),
+      name: f.name,
+      size: f.size,
+      originalContent: f.originalContent,
+      currentContent: f.currentContent,
+      originalBase64: f.originalBase64
+    }));
+
+    res.json({
+      id: savedProfile._id.toString(),
+      name: savedProfile.name,
+      createdAt: savedProfile.createdAt,
+      status: savedProfile.status,
+      replacements: savedProfile.replacements,
+      files: formattedFiles
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Lỗi khi hoàn tác cụm từ." });
   }
-
-  writeDatabase(db);
-  res.json(profile);
 });
 
 // API xuất tệp tin nén ZIP (toàn bộ hoặc chỉ các tệp đã chỉnh sửa)
-app.get('/api/profiles/:id/export', (req, res) => {
+app.get('/api/profiles/:id/export', async (req, res) => {
   const { id } = req.params;
   const { mode } = req.query; // 'all' hoặc 'edited'
 
-  const db = readDatabase();
-  const profile = db.profiles.find(p => p.id === id);
-  if (!profile) {
-    return res.status(404).json({ error: "Không tìm thấy hồ sơ thanh toán." });
-  }
-
-  let filesToExport = [];
-  if (mode === 'edited') {
-    filesToExport = profile.files.filter(f => f.currentContent !== f.originalContent);
-  } else if (mode === 'custom') {
-    const selectedIds = req.query.fileIds ? req.query.fileIds.split(',') : [];
-    filesToExport = profile.files.filter(f => selectedIds.includes(f.id));
-  } else {
-    filesToExport = profile.files;
-  }
-
-  if (filesToExport.length === 0) {
-    return res.status(400).json({ error: "Không có tệp tin nào để xuất bản." });
-  }
-
   try {
+    const profile = await Profile.findById(id);
+    if (!profile) {
+      return res.status(404).json({ error: "Không tìm thấy hồ sơ thanh toán." });
+    }
+
+    const files = await File.find({ profileId: id }).lean();
+    let filesToExport = [];
+    if (mode === 'edited') {
+      filesToExport = files.filter(f => f.currentContent !== f.originalContent);
+    } else if (mode === 'custom') {
+      const selectedIds = req.query.fileIds ? req.query.fileIds.split(',') : [];
+      filesToExport = files.filter(f => selectedIds.includes(f._id.toString()));
+    } else {
+      filesToExport = files;
+    }
+
+    if (filesToExport.length === 0) {
+      return res.status(400).json({ error: "Không có tệp tin nào để xuất bản." });
+    }
+
     const zip = new AdmZip();
-    filesToExport.forEach(file => {
+    for (const file of filesToExport) {
       const dotIndex = file.name.lastIndexOf('.');
       const baseName = dotIndex !== -1 ? file.name.substring(0, dotIndex) : file.name;
       const ext = dotIndex !== -1 ? file.name.substring(dotIndex) : '.txt';
-      const exportName = `${baseName}_hoanthien${ext}`;
       
-      const isDocx = ext.toLowerCase() === '.docx';
-      const isDoc = ext.toLowerCase() === '.doc';
+      const extLower = ext.toLowerCase();
+      let exportExt = ext;
+      if (extLower === '.doc' || extLower === '.docx') {
+        exportExt = '.docx'; // Chuyển đổi toàn bộ tệp Word cũ (.doc) sang định dạng Word mới (.docx) khi xuất bản để tiện sử dụng
+      }
+      const exportName = `${baseName}_hoanthien${exportExt}`;
+      
+      const isDocx = extLower === '.docx';
+      const isDoc = extLower === '.doc';
       
       if (isDocx && file.originalBase64) {
         // Có dữ liệu Word gốc (.docx), thực hiện thay thế XML trực tiếp
@@ -741,14 +1034,34 @@ app.get('/api/profiles/:id/export', (req, res) => {
           console.error(`Lỗi khi xử lý đồng bộ tệp tin Word ${file.name}:`, err);
           zip.addFile(exportName, createMinimalDocx(file.currentContent));
         }
-      } else if (isDocx || isDoc) {
-        // Tệp Word cũ hoặc giả lập thiếu Base64 gốc, sinh tệp Word (.docx) tối giản hợp lệ từ text thuần để đảm bảo mở được bình thường
+      } else if (isDoc && file.originalBase64) {
+        // Tệp Word cũ (.doc) có dữ liệu gốc, thử convert sang .docx qua COM rồi thay thế XML
+        try {
+          const docBuffer = Buffer.from(file.originalBase64, 'base64');
+          // Chuyển đổi thành đệm .docx
+          const docxBuffer = await convertDocToDocx(docBuffer);
+          const docxZip = new AdmZip(docxBuffer);
+          let documentXml = docxZip.readAsText('word/document.xml');
+          if (documentXml) {
+            documentXml = replaceTextInDocxXml(documentXml, profile.replacements || []);
+            docxZip.updateFile('word/document.xml', Buffer.from(documentXml, 'utf-8'));
+            zip.addFile(exportName, docxZip.toBuffer());
+          } else {
+            zip.addFile(exportName, createMinimalDocx(file.currentContent));
+          }
+        } catch (err) {
+          console.error(`Lỗi khi convert và xử lý đồng bộ tệp .doc ${file.name}:`, err);
+          // Fallback tạo file docx tối giản từ văn bản thuần nếu lỗi
+          zip.addFile(exportName, createMinimalDocx(file.currentContent));
+        }
+      } else if (extLower === '.docx' || extLower === '.doc') {
+        // Tệp Word cũ (.doc) hoặc tệp giả lập thiếu Base64, sinh tệp Word (.docx) tối giản hợp lệ từ text thuần để đảm bảo mở được bình thường
         zip.addFile(exportName, createMinimalDocx(file.currentContent));
       } else {
         // Tệp văn bản thuần (.txt) hoặc các tệp tin khác
         zip.addFile(exportName, Buffer.from(file.currentContent, 'utf-8'));
       }
-    });
+    }
 
     const zipBuffer = zip.toBuffer();
     

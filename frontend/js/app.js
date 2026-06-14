@@ -35,7 +35,7 @@ function initApp() {
                 await AppStore.setActiveProfile(null);
                 renderProfiles();
                 renderActiveProfile();
-                
+
                 // Reset ô tìm kiếm hồ sơ ở Sidebar
                 const searchInput = document.getElementById('search-profile-input');
                 if (searchInput) {
@@ -93,7 +93,7 @@ function initApp() {
                     const newProfile = await AppStore.createProfile(profileName);
                     modalCreateProfile.classList.add('hidden');
                     showToast(`Tạo thành công hồ sơ: "${newProfile.name}"`, 'success');
-                    
+
                     renderProfiles();
                     renderActiveProfile();
                 } catch (error) {
@@ -108,7 +108,7 @@ function initApp() {
     if (searchInput) {
         searchInput.addEventListener('input', (e) => {
             const query = e.target.value.toLowerCase();
-            const filteredProfiles = AppStore.getProfiles().filter(p => 
+            const filteredProfiles = AppStore.getProfiles().filter(p =>
                 p.name.toLowerCase().includes(query)
             );
             Components.renderProfileList(filteredProfiles, AppStore.state.activeProfileId);
@@ -123,7 +123,7 @@ function initApp() {
             if (profileItem) {
                 const profileId = profileItem.getAttribute('data-id');
                 await AppStore.setActiveProfile(profileId);
-                
+
                 document.querySelectorAll('.profile-item').forEach(item => {
                     item.classList.remove('active');
                 });
@@ -183,9 +183,9 @@ function initApp() {
                 currentSearchQuery = "";
                 const searchInput = document.getElementById('search-phrase-input');
                 if (searchInput) searchInput.value = "";
-                
+
                 btnClear.classList.add('hidden');
-                
+
                 // Trả vùng kết quả về mặc định
                 const resultsArea = document.getElementById('search-results-area');
                 if (resultsArea) {
@@ -198,30 +198,16 @@ function initApp() {
                     safeCreateIcons();
                 }
 
-                // Cập nhật lại preview (ẩn đi nếu không có replacements thực tế)
+                // Cập nhật lại danh sách option preview đầy đủ và update file preview đầu tiên không có highlight search
                 const activeProfile = AppStore.getActiveProfile();
-                if (activeProfile) {
-                    if (activeProfile.replacements && activeProfile.replacements.length > 0) {
-                        if (activeProfile.files && activeProfile.files.length > 0) {
-                            const selectPreview = document.getElementById('select-preview-file');
-                            if (selectPreview) {
-                                const editedFiles = activeProfile.files.filter(file => file.currentContent !== file.originalContent);
-                                const displayFiles = editedFiles.length > 0 ? editedFiles : activeProfile.files;
-                                selectPreview.innerHTML = displayFiles.map((file, idx) => `
-                                    <option value="${file.id}" ${idx === 0 ? 'selected' : ''}>${file.name}</option>
-                                `).join('');
-                            }
-                            const fileId = selectPreview ? selectPreview.value : activeProfile.files[0].id;
-                            const file = activeProfile.files.find(f => f.id === fileId) || activeProfile.files[0];
-                            if (file) {
-                                Components.updateFilePreview(file, activeProfile, "");
-                            }
-                        }
-                    } else {
-                        // Ẩn preview section đi nếu chưa có replacements và đã hủy tìm kiếm
-                        const previewSection = document.getElementById('card-preview-section');
-                        if (previewSection) previewSection.classList.add('hidden');
+                if (activeProfile && activeProfile.files && activeProfile.files.length > 0) {
+                    const selectPreview = document.getElementById('select-preview-file');
+                    if (selectPreview) {
+                        selectPreview.innerHTML = activeProfile.files.map((file, idx) => `
+                            <option value="${file.id}" ${idx === 0 ? 'selected' : ''}>${file.name}</option>
+                        `).join('');
                     }
+                    Components.updateFilePreview(activeProfile.files[0], activeProfile, "");
                 }
             }
         });
@@ -233,7 +219,7 @@ function initApp() {
             if (btnRemoveFile) {
                 const fileId = btnRemoveFile.getAttribute('data-file-id');
                 const profileId = btnRemoveFile.getAttribute('data-profile-id');
-                
+
                 try {
                     await AppStore.removeFileFromProfile(profileId, fileId);
                     showToast("Đã xóa tài liệu khỏi hồ sơ.", "success");
@@ -346,18 +332,18 @@ function initApp() {
                 try {
                     await AppStore.applyReplacement(activeProfile.id, findText, replaceText, targetFileIds);
                     showToast(`Đã thay thế "${findText}" thành "${replaceText}" thành công!`, "success");
-                    
+
                     renderProfiles();
                     renderActiveProfile();
 
                     // Làm trống ô tìm kiếm và hiển thị thông báo thành công
                     const searchInput = document.getElementById('search-phrase-input');
                     if (searchInput) searchInput.value = "";
-                    
+
                     currentSearchQuery = "";
                     const btnClearSearch = document.getElementById('btn-clear-search');
                     if (btnClearSearch) btnClearSearch.classList.add('hidden');
-                    
+
                     const resultsArea = document.getElementById('search-results-area');
                     if (resultsArea) {
                         resultsArea.innerHTML = `
@@ -381,12 +367,12 @@ function initApp() {
                 const findText = btnUndo.getAttribute('data-find-text');
                 const replaceText = btnUndo.getAttribute('data-replace-text');
                 const activeProfile = AppStore.getActiveProfile();
-                
+
                 if (activeProfile && confirm(`Bạn có chắc chắn muốn khôi phục cụm từ "${replaceText}" trở lại thành "${findText}" trong tất cả tài liệu không?`)) {
                     try {
                         await AppStore.undoReplacement(activeProfile.id, findText, replaceText);
                         showToast(`Đã khôi phục thành công cụm từ gốc!`, "success");
-                        
+
                         renderProfiles();
                         renderActiveProfile();
                     } catch (error) {
@@ -396,17 +382,16 @@ function initApp() {
             }
         });
 
-        // 8. Thay đổi file xem trước trong dropdown preview
+        // 8. Xử lý thay đổi file xem trước trong preview (Split Preview)
         detailContainer.addEventListener('change', (e) => {
-            const selectPreview = e.target.closest('#select-preview-file');
-            if (selectPreview) {
-                const fileId = selectPreview.value;
+            const select = e.target.closest('#select-preview-file');
+            if (select) {
                 const activeProfile = AppStore.getActiveProfile();
-                if (activeProfile) {
-                    const file = activeProfile.files.find(f => f.id === fileId);
-                    if (file) {
-                        Components.updateFilePreview(file, activeProfile, currentSearchQuery);
-                    }
+                if (!activeProfile) return;
+                const fileId = select.value;
+                const file = activeProfile.files.find(f => f.id === fileId);
+                if (file) {
+                    Components.updateFilePreview(file, activeProfile, currentSearchQuery);
                 }
             }
         });
@@ -419,11 +404,11 @@ function initApp() {
                 if (radio) {
                     radio.checked = true;
                 }
-                
+
                 // Cập nhật class active
                 document.querySelectorAll('.export-card').forEach(c => c.classList.remove('active'));
                 card.classList.add('active');
-                
+
                 // Hiện hoặc ẩn danh sách tự chọn file
                 const mode = card.getAttribute('data-mode');
                 const customSelectArea = document.getElementById('custom-files-select-container');
@@ -452,7 +437,7 @@ function initApp() {
         detailContainer.addEventListener('click', (e) => {
             const btnSelectAll = e.target.closest('#btn-export-select-all');
             const btnDeselectAll = e.target.closest('#btn-export-deselect-all');
-            
+
             if (btnSelectAll || btnDeselectAll) {
                 const state = !!btnSelectAll;
                 const checkboxes = document.querySelectorAll('.export-file-checkbox');
@@ -462,17 +447,20 @@ function initApp() {
             }
         });
 
-        // 12. Xử lý nút tải xuống ZIP hồ sơ hoàn thiện duy nhất
-        detailContainer.addEventListener('click', (e) => {
+        // 12. Xử lý nút tải xuống ZIP hồ sơ hoàn thiện duy nhất bằng fetch + blob để có trạng thái chờ (loading)
+        detailContainer.addEventListener('click', async (e) => {
             const btnSubmit = e.target.closest('#btn-submit-export');
             if (btnSubmit) {
+                // Tránh xử lý trùng lặp nếu nút đang bị vô hiệu hóa
+                if (btnSubmit.disabled) return;
+
                 const activeProfile = AppStore.getActiveProfile();
                 if (!activeProfile || activeProfile.files.length === 0) return;
 
                 // Lấy chế độ xuất đang active
                 const activeCard = document.querySelector('.export-card.active');
                 if (!activeCard) return;
-                
+
                 const mode = activeCard.getAttribute('data-mode');
                 let url = `${AppStore.API_BASE}/profiles/${activeProfile.id}/export?mode=${mode}`;
 
@@ -492,130 +480,59 @@ function initApp() {
                     url += `&fileIds=${selectedIds}`;
                 }
 
-                // Tải file qua Fetch API dưới dạng Blob để tránh làm gián đoạn trạng thái trang web
-                showToast("Đang đóng gói tài liệu và chuẩn bị tải về...", "success");
+                // Thiết lập trạng thái loading trên nút bấm để khóa click
+                const originalBtnContent = btnSubmit.innerHTML;
+                btnSubmit.disabled = true;
+                btnSubmit.style.opacity = '0.75';
+                btnSubmit.style.cursor = 'not-allowed';
+                btnSubmit.innerHTML = `<span class="loading-spinner-btn" style="display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: spin 1s ease-in-out infinite; margin-right: 8px; vertical-align: middle;"></span> Đang xuất bản...`;
 
-                fetch(url)
-                    .then(response => {
-                        if (!response.ok) throw new Error("Không thể tải file xuất bản từ server.");
-                        return response.blob();
-                    })
-                    .then(blob => {
-                        const blobUrl = window.URL.createObjectURL(blob);
-                        const link = document.createElement('a');
-                        link.href = blobUrl;
-                        link.download = `${activeProfile.name}_export.zip`;
-                        link.style.display = 'none';
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        window.URL.revokeObjectURL(blobUrl);
-                    })
-                    .catch(err => {
-                        console.error("Lỗi xuất file:", err);
-                        showToast("Lỗi khi tải xuống hồ sơ: " + err.message, "danger");
-                    });
-            }
-        });
+                showToast("Hệ thống đang đóng gói và convert tài liệu (Word COM), vui lòng đợi...", "success");
 
-        // 13. Xử lý hiển thị popover xem trước nội dung file khi click (Dạng Modal căn giữa)
-        let activePopover = null;
-        let activeOverlay = null;
-
-        // Hàm helper đóng popover và overlay với hiệu ứng mượt mà
-        const closePopoverPreview = () => {
-            if (activePopover) {
-                activePopover.classList.remove('visible');
-                setTimeout(() => {
-                    if (activePopover) {
-                        activePopover.remove();
-                        activePopover = null;
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        let errorMsg = "Không thể xuất bản hồ sơ.";
+                        try {
+                            const errData = await response.json();
+                            if (errData && errData.error) errorMsg = errData.error;
+                        } catch (_) {}
+                        throw new Error(errorMsg);
                     }
-                }, 200);
-            }
-            if (activeOverlay) {
-                activeOverlay.classList.remove('visible');
-                setTimeout(() => {
-                    if (activeOverlay) {
-                        activeOverlay.remove();
-                        activeOverlay = null;
-                    }
-                }, 200);
-            }
-        };
-        
-        detailContainer.addEventListener('click', (e) => {
-            const fileItem = e.target.closest('.file-item');
-            if (fileItem) {
-                // Nếu click vào nút xóa file, ta tắt popover và để sự kiện xóa chạy bình thường
-                if (e.target.closest('.btn-remove-file')) {
-                    closePopoverPreview();
-                    return;
-                }
 
-                const fileId = fileItem.getAttribute('data-file-id');
-                const activeProfile = AppStore.getActiveProfile();
-                if (!activeProfile) return;
-
-                const file = activeProfile.files.find(f => f.id === fileId);
-                if (!file) return;
-
-                // Tạo lớp overlay nền mờ nếu chưa có
-                if (!activeOverlay) {
-                    activeOverlay = document.createElement('div');
-                    activeOverlay.className = 'popover-overlay';
-                    document.body.appendChild(activeOverlay);
+                    const blob = await response.blob();
+                    const downloadUrl = window.URL.createObjectURL(blob);
                     
-                    // Click vào overlay để đóng popover
-                    activeOverlay.addEventListener('click', closePopoverPreview);
+                    // Tạo một thẻ link tải ảo và tự động click để tải file ZIP về
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = downloadUrl;
+                    a.download = `${activeProfile.name}_export.zip`;
+                    document.body.appendChild(a);
+                    a.click();
+                    
+                    // Giải phóng tài nguyên link tải
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(downloadUrl);
+                    
+                    showToast("Đóng gói hồ sơ và tải về thành công!", "success");
+                } catch (err) {
+                    console.error("Lỗi khi tải file ZIP xuất bản:", err);
+                    showToast(`Lỗi xuất bản: ${err.message}`, "danger");
+                } finally {
+                    // Khôi phục lại trạng thái ban đầu của nút bấm
+                    btnSubmit.disabled = false;
+                    btnSubmit.style.opacity = '1';
+                    btnSubmit.style.cursor = 'pointer';
+                    btnSubmit.innerHTML = originalBtnContent;
+                    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                        window.lucide.createIcons();
+                    }
                 }
-
-                // Tạo phần tử popover nếu chưa có
-                if (!activePopover) {
-                    activePopover = document.createElement('div');
-                    activePopover.className = 'file-preview-popover';
-                    document.body.appendChild(activePopover);
-                }
-
-                // Lấy toàn bộ nội dung gốc để hiển thị xem trước đầy đủ
-                const rawText = file.originalContent || 'Tài liệu trống';
-                
-                // Định dạng nội dung xem trước giống như văn bản gốc bên dưới (bao gồm highlight đỏ/vàng)
-                const formattedContent = Components.formatContentForPreview(
-                    rawText, 
-                    'original', 
-                    activeProfile.replacements || [], 
-                    currentSearchQuery
-                );
-
-                activePopover.innerHTML = `
-                    <div class="popover-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 8px;">
-                        <div style="min-width: 0; flex: 1;">
-                            <div class="popover-title" style="font-size: 14px; font-weight: 700; color: var(--primary-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${file.name}">${file.name}</div>
-                            <div class="popover-size" style="font-size: 11.5px; color: var(--text-secondary); margin-top: 2px;">${Components.formatFileSize(file.size)}</div>
-                        </div>
-                        <button class="popover-close-btn" style="background: none; border: none; font-size: 20px; color: var(--text-secondary); cursor: pointer; padding: 0 4px; line-height: 1; transition: var(--transition-fast);">&times;</button>
-                    </div>
-                    <div class="popover-content">${formattedContent}</div>
-                `;
-
-                // Gán sự kiện click nút đóng x
-                const closeBtn = activePopover.querySelector('.popover-close-btn');
-                if (closeBtn) {
-                    closeBtn.addEventListener('click', (event) => {
-                        event.stopPropagation(); // Ngăn click loang rộng
-                        closePopoverPreview();
-                    });
-                }
-
-                // Kích hoạt hiển thị với hiệu ứng transition mượt mà
-                activeOverlay.offsetWidth; // Ép reflow
-                activePopover.offsetWidth;
-                
-                activeOverlay.classList.add('visible');
-                activePopover.classList.add('visible');
             }
         });
+
+        // 13. Đã loại bỏ xử lý hiển thị popover xem trước nội dung file khi click
     }
 }
 
@@ -641,7 +558,7 @@ function triggerTextSearch() {
     // Chuẩn hóa Unicode NFC và rút gọn khoảng trắng để so sánh chính xác hơn (chấp nhận khoảng trắng kép/xuống dòng)
     const cleanString = (str) => (str || '').normalize('NFC').replace(/\s+/g, ' ');
     const normalizedQuery = cleanString(query);
-    const matchingFiles = activeProfile.files.filter(file => 
+    const matchingFiles = activeProfile.files.filter(file =>
         cleanString(file.currentContent).includes(normalizedQuery) ||
         cleanString(file.originalContent).includes(normalizedQuery)
     );
@@ -694,12 +611,9 @@ async function handleUploadedFiles(filesList) {
 
         try {
             let content;
-            if (fileExtension === 'docx') {
-                // Đọc file docx dưới dạng Base64 để backend tự giải nén và trích xuất
+            if (fileExtension === 'docx' || fileExtension === 'doc') {
+                // Đọc file docx hoặc doc dưới dạng Base64 để backend tự giải nén và trích xuất
                 content = await readFileAsDataURL(file);
-            } else if (fileExtension === 'doc') {
-                // Tệp .doc cũ sinh dữ liệu giả lập sạch
-                content = generateSimulatedContent(file.name);
             } else {
                 // Các tệp text thông thường
                 content = await readFileAsText(file);
@@ -751,28 +665,6 @@ function readFileAsText(file) {
     });
 }
 
-/**
- * Hàm tạo nội dung giả lập động dựa trên tên file (Dùng cho tệp .doc)
- */
-function generateSimulatedContent(filename) {
-    let hash = 0;
-    for (let i = 0; i < filename.length; i++) {
-        hash = (hash * 31 + filename.charCodeAt(i)) % 1000;
-    }
-    
-    // Tạo nội dung mẫu không chứa tag [RED] để người dùng tự tìm kiếm
-    return `TÀI LIỆU CHỨNG TỪ THANH TOÁN (GIẢ LẬP)
-Tên tài liệu gốc: ${filename}
----
-Đơn vị đề nghị thanh toán: Công ty Cổ phần Công nghệ thông tin Phương Nam
-Mã số thuế: 0100686209-009
-Địa chỉ Bên thụ hưởng: 123/45 Đường Trần Hưng Đạo, Quận Ninh Kiều, TP. Cần Thơ
-Tài khoản thụ hưởng: 0111000234xxx tại Ngân hàng TMCP Ngoại thương Việt Nam - CN Cần Thơ (Vietcombank)
-Số tiền quyết toán: 120.000.000 VNĐ
-
-Nội dung thanh toán: Chi phí thực hiện dịch vụ bảo trì kỹ thuật và hạ tầng viễn thông cho MobiFone Cần Thơ quý I năm 2026.
-Kính mong Ban Giám đốc MobiFone phê duyệt quyết toán.`;
-}
 
 /**
  * Render danh sách hồ sơ ở Sidebar
@@ -794,27 +686,18 @@ function renderActiveProfile() {
     if (currentSearchQuery) {
         const btnClearSearch = document.getElementById('btn-clear-search');
         if (btnClearSearch) btnClearSearch.classList.remove('hidden');
-        
+
         const searchInput = document.getElementById('search-phrase-input');
         if (searchInput) searchInput.value = currentSearchQuery;
     }
 
-    // Nếu hồ sơ có replacements (chỉnh sửa) hoặc đang có từ khóa tìm kiếm tích cực
-    const hasReplacements = activeProfile && activeProfile.replacements && activeProfile.replacements.length > 0;
-    
-    if (activeProfile && (hasReplacements || currentSearchQuery)) {
-        const previewSection = document.getElementById('card-preview-section');
-        if (previewSection) {
-            previewSection.classList.remove('hidden');
-            
-            if (activeProfile.files && activeProfile.files.length > 0) {
-                // Lấy file đang chọn hoặc mặc định là file đầu tiên
-                const selectPreview = document.getElementById('select-preview-file');
-                const fileId = selectPreview ? selectPreview.value : activeProfile.files[0].id;
-                const file = activeProfile.files.find(f => f.id === fileId) || activeProfile.files[0];
-                Components.updateFilePreview(file, activeProfile, currentSearchQuery);
-            }
-        }
+    // Cập nhật preview cho tệp đang hoạt động nếu hồ sơ có tệp tin
+    if (activeProfile && activeProfile.files && activeProfile.files.length > 0) {
+        // Lấy file đang chọn ở dropdown hoặc mặc định là file đầu tiên
+        const selectPreview = document.getElementById('select-preview-file');
+        const fileId = selectPreview ? selectPreview.value : activeProfile.files[0].id;
+        const file = activeProfile.files.find(f => f.id === fileId) || activeProfile.files[0];
+        Components.updateFilePreview(file, activeProfile, currentSearchQuery);
     }
 }
 
@@ -827,7 +710,7 @@ function showToast(message, type = 'info') {
 
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
-    
+
     let iconName = 'info';
     if (type === 'success') iconName = 'check-circle';
     if (type === 'danger') iconName = 'alert-triangle';
@@ -848,15 +731,3 @@ function showToast(message, type = 'info') {
     }, 3200);
 }
 
-/**
- * Hàm escape ký tự đặc biệt hiển thị an toàn trên Popover
- */
-function escapeHtmlForPopover(unsafe) {
-    if (!unsafe) return "";
-    return unsafe
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
