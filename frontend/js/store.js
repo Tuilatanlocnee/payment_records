@@ -15,7 +15,7 @@ window.AppStore = {
     // Đường dẫn cơ sở kết nối đến Express API Server (tự động nhận diện môi trường localhost vs cloud deploy)
     API_BASE: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
         ? "http://localhost:5000/api"
-        : "https://payment-records-backend.onrender.com/api",
+        : "https://payment-records-okxr.onrender.com/api",
 
     /**
      * Khởi tạo Store và tải dữ liệu từ Backend API
