@@ -7,6 +7,11 @@
 let currentSearchQuery = "";
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Khởi tạo các icons cho Landing Page ngay khi tải trang
+    if (window.safeCreateIcons) {
+        window.safeCreateIcons();
+    }
+
     // Đăng ký sự kiện nút "Bắt đầu làm việc ngay" trên Landing Page
     const btnStart = document.getElementById('btn-start-app');
     if (btnStart) {
