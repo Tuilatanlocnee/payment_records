@@ -617,25 +617,29 @@ window.Components = {
 
             // 1. Quốc hiệu
             if (upperLine.includes("CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM")) {
-                return `<div style="text-align: center; font-weight: bold; margin-bottom: 2px;">${line}</div>`;
+                return `<div style="text-align: center; font-weight: bold; margin-bottom: 2px;">${trimmedLine}</div>`;
             }
-            // 2. Tiêu ngữ
-            if (upperLine.includes("ĐỘC LẬP - TỰ DO - HẠNH PHÚC") || trimmedLine === "Độc lập - Tự do - Hạnh phúc") {
-                return `<div style="text-align: center; font-weight: bold; margin-bottom: 15px;">${line}</div>`;
+            // 2. Tiêu ngữ (Hỗ trợ en-dash, em-dash, hyphen, dấu cách ngẫu nhiên)
+            const isTieuNgu = /Độc\s+lập\s+[\-\–\—]\s+Tự\s+do\s+[\-\–\—]\s+Hạnh\s+phúc/i.test(trimmedLine);
+            if (isTieuNgu) {
+                return `<div style="text-align: center; font-weight: bold; margin-bottom: 15px;">${trimmedLine}</div>`;
             }
             // 3. Tiêu đề chính (BÁO CÁO, TỜ TRÌNH, BIÊN BẢN, v.v.)
             const isTitleKeyword = /^(BÁO CÁO|TỜ TRÌNH|BIÊN BẢN|QUYẾT ĐỊNH|KẾ HOẠCH|CÔNG VĂN|ĐỀ NGHỊ|DANH SÁCH|THÔNG BÁO|HỢP ĐỒNG)(\b|$)/i.test(trimmedLine);
-            if (isTitleKeyword && trimmedLine.length < 100 && trimmedLine === upperLine) {
-                return `<div style="text-align: center; font-weight: bold; margin-top: 15px; margin-bottom: 5px; font-size: 1.15em; color: var(--primary-color);">${line}</div>`;
+            // Loại bỏ các thẻ HTML để so sánh chữ hoa/thường chính xác (tránh lỗi khi có thẻ span highlight)
+            const cleanText = trimmedLine.replace(/<[^>]*>/g, '');
+            if (isTitleKeyword && cleanText.length < 100 && cleanText === cleanText.toUpperCase() && cleanText.trim() !== "") {
+                return `<div style="text-align: center; font-weight: bold; margin-top: 15px; margin-bottom: 5px; font-size: 1.15em; color: var(--primary-color);">${trimmedLine}</div>`;
             }
             // Tiêu đề phụ đi kèm ngay sau tiêu đề chính (ví dụ: "Về việc...", "V/v...")
-            if ((trimmedLine.startsWith("Về việc") || trimmedLine.startsWith("V/v") || trimmedLine.toLowerCase().startsWith("về việc") || trimmedLine.toLowerCase().startsWith("v/v")) && trimmedLine.length < 120) {
-                return `<div style="text-align: center; font-style: italic; margin-bottom: 15px; font-weight: 500;">${line}</div>`;
+            const isSubTitle = /^(về việc|v\/v)/i.test(trimmedLine);
+            if (isSubTitle && trimmedLine.length < 120) {
+                return `<div style="text-align: center; font-style: italic; margin-bottom: 15px; font-weight: 500;">${trimmedLine}</div>`;
             }
-            // 4. Ngày tháng địa danh hành chính (ví dụ: "..., ngày ... tháng ... năm ...")
-            const isDateLine = /,\s*ngày\s+\d+\s+tháng\s+\d+\s+năm\s+\d+\s*\.?$/i.test(trimmedLine);
-            if (isDateLine && trimmedLine.length < 80) {
-                return `<div style="text-align: right; font-style: italic; margin-bottom: 12px; padding-right: 10px;">${line}</div>`;
+            // 4. Ngày tháng địa danh hành chính (ví dụ: "..., ngày ... tháng ... năm ...", hỗ trợ cả khoảng trống template)
+            const isDateLine = /,\s*ngày\s*[\d\s._]*\s*tháng\s*[\d\s._]*\s*năm\s*[\d\s._]*\d{4}\s*\.?$/i.test(trimmedLine);
+            if (isDateLine && trimmedLine.length < 100) {
+                return `<div style="text-align: right; font-style: italic; margin-bottom: 12px; padding-right: 10px;">${trimmedLine}</div>`;
             }
             // 5. Nơi nhận hoặc Kính gửi
             if ((trimmedLine.startsWith("Kính gửi:") || trimmedLine.startsWith("Kính gửi :") || trimmedLine.startsWith("KÍNH GỬI:")) && trimmedLine.length < 120) {
@@ -643,10 +647,10 @@ window.Components = {
             }
 
             // 6. Định dạng chữ ký của người ký đơn lẻ ở cuối văn bản (Căn phải và căn giữa theo khối)
-            const isSignatureTitle = /^(GIÁM ĐỐC|PHÓ GIÁM ĐỐC|THỦ TRƯỞNG ĐƠN VỊ|GIÁM ĐỐC CHI NHÁNH MOBIFONE SERVICE MIỀN NAM|ĐẠI DIỆN CHI NHÁNH MOBIFONE SERVICE MIỀN NAM)(\b|$)/i.test(trimmedLine);
-            if (isSignatureTitle) {
+            const isSignatureTitle = /^(GIÁM ĐỐC|PHÓ GIÁM ĐỐC|THỦ TRƯỞNG|ĐẠI DIỆN|KẾ TOÁN TRƯỞNG|NGƯỜI LẬP BIỂU|NGƯỜI LẬP|NGƯỜI ĐỀ NGHỊ|KT\b)/i.test(trimmedLine);
+            if (isSignatureTitle && trimmedLine.length < 150) {
                 inRightSignature = true;
-                return `<div style="text-align: center; margin-left: auto; margin-right: 20px; width: 300px; font-weight: bold; margin-top: 20px; font-size: 1.05em;">${line}</div>`;
+                return `<div style="text-align: center; margin-left: auto; margin-right: 20px; width: 320px; font-weight: bold; margin-top: 20px; font-size: 1.05em;">${trimmedLine}</div>`;
             }
             
             if (inRightSignature) {
@@ -654,7 +658,7 @@ window.Components = {
                     return `<div></div>`;
                 } else {
                     inRightSignature = false;
-                    return `<div style="text-align: center; margin-left: auto; margin-right: 20px; width: 300px; font-weight: bold; margin-top: 60px;">${line}</div>`;
+                    return `<div style="text-align: center; margin-left: auto; margin-right: 20px; width: 320px; font-weight: bold; margin-top: 60px;">${trimmedLine}</div>`;
                 }
             }
             
