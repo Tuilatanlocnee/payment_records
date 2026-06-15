@@ -633,7 +633,7 @@ window.Components = {
                 return `<div style="text-align: center; font-style: italic; margin-bottom: 15px; font-weight: 500;">${line}</div>`;
             }
             // 4. Ngày tháng địa danh hành chính (ví dụ: "..., ngày ... tháng ... năm ...")
-            const isDateLine = /,\s*ngày\s+\d+\s+tháng\s+\d+\s+năm\s+\d+/i.test(trimmedLine);
+            const isDateLine = /,\s*ngày\s+\d+\s+tháng\s+\d+\s+năm\s+\d+\s*\.?$/i.test(trimmedLine);
             if (isDateLine && trimmedLine.length < 80) {
                 return `<div style="text-align: right; font-style: italic; margin-bottom: 12px; padding-right: 10px;">${line}</div>`;
             }

@@ -750,6 +750,7 @@ h1, h2, h3, h4 {
 .preview-column {
     display: flex;
     flex-direction: column;
+    height: 100%;
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     overflow: hidden;
@@ -783,6 +784,7 @@ h1, h2, h3, h4 {
     flex: 1;
     padding: 20px;
     overflow-y: auto;
+    overflow-x: hidden;
     font-family: 'Times New Roman', Times, serif;
     font-size: 15.5px;
     line-height: 1.65;
