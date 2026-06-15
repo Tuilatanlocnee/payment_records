@@ -511,26 +511,28 @@ window.Components = {
     formatContentForPreview(content, type, replacements = [], activeSearchQuery = "") {
         if (!content) return '';
         
-        // Chuẩn hóa Unicode NFC để đồng nhất kí tự tiếng Việt
-        let escaped = content.normalize('NFC')
+        let escaped = content.normalize('NFC');
+
+        // Tạm thời thay thế các thẻ HTML bảng sang token an toàn không chứa ký tự đặc biệt
+        escaped = escaped
+            .replace(/<table class=["']docx-table["']>/g, '___TABLE_OPEN___')
+            .replace(/<table>/g, '___TABLE_SIMPLE_OPEN___')
+            .replace(/<\/table>/g, '___TABLE_CLOSE___')
+            .replace(/<tbody>/g, '___TBODY_OPEN___')
+            .replace(/<\/tbody>/g, '___TBODY_CLOSE___')
+            .replace(/<tr>/g, '___TR_OPEN___')
+            .replace(/<\/tr>/g, '___TR_CLOSE___')
+            .replace(/<td>/g, '___TD_OPEN___')
+            .replace(/<\/td>/g, '___TD_CLOSE___')
+            .replace(/<br\s*\/?>/g, '___BR___');
+
+        // Encode HTML entities cho phần văn bản còn lại
+        escaped = escaped
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;");
 
-        // Khôi phục lại các thẻ bảng HTML được sinh từ Parser của Backend
-        escaped = escaped
-            .replace(/&lt;table class=&quot;docx-table&quot;&gt;/g, '<table class="docx-table">')
-            .replace(/&lt;table&gt;/g, '<table>')
-            .replace(/&lt;\/table&gt;/g, '</table>')
-            .replace(/&lt;tbody&gt;/g, '<tbody>')
-            .replace(/&lt;\/tbody&gt;/g, '</tbody>')
-            .replace(/&lt;tr&gt;/g, '<tr>')
-            .replace(/&lt;\/tr&gt;/g, '</tr>')
-            .replace(/&lt;td&gt;/g, '<td>')
-            .replace(/&lt;\/td&gt;/g, '</td>')
-            .replace(/&lt;br&gt;/g, '<br>');
-
-        // Highlight các từ cũ/mới đã được thay thế thành công (Tránh thay thế trong các thẻ HTML)
+        // Highlight các từ cũ/mới đã được thay thế thành công (Bỏ qua các thẻ HTML và các token an toàn)
         if (replacements && replacements.length > 0) {
             if (type === 'original') {
                 // Highlight các từ cũ đã bị thay thế bằng màu đỏ
@@ -539,8 +541,8 @@ window.Components = {
                     const normalizedFind = findText.normalize('NFC');
                     const escapedFind = normalizedFind.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
                     const regexPattern = escapedFind.replace(/\s+/g, '\\s+');
-                    // Sử dụng group (/<[^>]*>/) để bỏ qua thẻ HTML
-                    const regex = new RegExp(`(<[^>]*>)|(${regexPattern})`, 'g');
+                    // Loại trừ các class highlight và các token bảng biểu
+                    const regex = new RegExp(`(highlight-red|highlight-green|highlight-search-temp|___[A-Z0-9_]+___|<[^>]*>)|(${regexPattern})`, 'g');
                     escaped = escaped.replace(regex, (match, p1, p2) => {
                         if (p1) return p1;
                         return `<span class="highlight-red">${p2}</span>`;
@@ -553,7 +555,7 @@ window.Components = {
                     const normalizedReplace = replaceText.normalize('NFC');
                     const escapedReplace = normalizedReplace.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
                     const regexPattern = escapedReplace.replace(/\s+/g, '\\s+');
-                    const regex = new RegExp(`(<[^>]*>)|(${regexPattern})`, 'g');
+                    const regex = new RegExp(`(highlight-red|highlight-green|highlight-search-temp|___[A-Z0-9_]+___|<[^>]*>)|(${regexPattern})`, 'g');
                     escaped = escaped.replace(regex, (match, p1, p2) => {
                         if (p1) return p1;
                         return `<span class="highlight-green">${p2}</span>`;
@@ -562,12 +564,12 @@ window.Components = {
             }
         }
 
-        // Highlight từ khóa đang tìm kiếm tạm thời bằng màu vàng nhạt (tránh trong thẻ HTML)
+        // Highlight từ khóa đang tìm kiếm tạm thời bằng màu vàng nhạt
         if (activeSearchQuery && activeSearchQuery.trim() !== "") {
             const normalizedSearch = activeSearchQuery.normalize('NFC');
             const escapedSearch = normalizedSearch.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
             const regexPattern = escapedSearch.replace(/\s+/g, '\\s+');
-            const regex = new RegExp(`(<[^>]*>)|(${regexPattern})`, 'g');
+            const regex = new RegExp(`(highlight-red|highlight-green|highlight-search-temp|___[A-Z0-9_]+___|<[^>]*>)|(${regexPattern})`, 'g');
             escaped = escaped.replace(regex, (match, p1, p2) => {
                 if (p1) return p1;
                 return `<span class="highlight-search-temp">${p2}</span>`;
@@ -582,8 +584,8 @@ window.Components = {
             const trimmedLine = line.trim();
             const upperLine = trimmedLine.toUpperCase();
 
-            // Nếu dòng chứa các thẻ bảng HTML, bỏ qua việc tự động định dạng dòng
-            const hasTableTag = /<table|<tr|<td/i.test(trimmedLine);
+            // Nếu dòng chứa các thẻ bảng hoặc token bảng biểu, bỏ qua việc bọc thẻ div định dạng
+            const hasTableTag = /<table|<tr|<td|___TABLE_|___TR_|___TD_|___TBODY_/i.test(trimmedLine);
             if (hasTableTag) {
                 return line;
             }
@@ -660,7 +662,22 @@ window.Components = {
             return `<div>${line}</div>`;
         });
 
-        return formattedLines.join('');
+        let result = formattedLines.join('');
+        
+        // Khôi phục các thẻ bảng HTML từ token an toàn
+        result = result
+            .replace(/___TABLE_OPEN___/g, '<table class="docx-table">')
+            .replace(/___TABLE_SIMPLE_OPEN___/g, '<table>')
+            .replace(/___TABLE_CLOSE___/g, '</table>')
+            .replace(/___TBODY_OPEN___/g, '<tbody>')
+            .replace(/___TBODY_CLOSE___/g, '</tbody>')
+            .replace(/___TR_OPEN___/g, '<tr>')
+            .replace(/___TR_CLOSE___/g, '</tr>')
+            .replace(/___TD_OPEN___/g, '<td>')
+            .replace(/___TD_CLOSE___/g, '</td>')
+            .replace(/___BR___/g, '<br>');
+
+        return result;
     },
 
     /**
