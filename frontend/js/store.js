@@ -146,7 +146,23 @@ window.AppStore = {
         }
 
         const newFile = await response.json();
-        await this.refreshProfile(profileId);
+        
+        // Cập nhật local state trực tiếp để tối ưu hóa tốc độ, tránh gửi fetch profiles dư thừa
+        this.state.profiles = this.state.profiles.map(p => {
+            if (p.id === profileId) {
+                const updatedFiles = p.files ? [...p.files] : [];
+                if (!updatedFiles.some(f => f.id === newFile.id)) {
+                    updatedFiles.push(newFile);
+                }
+                return {
+                    ...p,
+                    status: 'new',
+                    files: updatedFiles
+                };
+            }
+            return p;
+        });
+
         return newFile;
     },
 
@@ -163,7 +179,21 @@ window.AppStore = {
             throw new Error("Không thể xóa tài liệu.");
         }
 
-        await this.refreshProfile(profileId);
+        const data = await response.json();
+        
+        // Cập nhật local state trực tiếp sử dụng danh sách file mới từ backend trả về
+        if (data && data.files) {
+            this.state.profiles = this.state.profiles.map(p => {
+                if (p.id === profileId) {
+                    return {
+                        ...p,
+                        status: data.files.length === 0 ? 'new' : p.status,
+                        files: data.files
+                    };
+                }
+                return p;
+            });
+        }
     },
 
     /**
@@ -182,7 +212,12 @@ window.AppStore = {
         }
 
         const updatedProfile = await response.json();
-        await this.refreshProfile(profileId);
+        
+        // Cập nhật local state trực tiếp
+        this.state.profiles = this.state.profiles.map(p => 
+            p.id === profileId ? updatedProfile : p
+        );
+
         return updatedProfile;
     },
 
@@ -200,7 +235,12 @@ window.AppStore = {
         }
 
         const updatedProfile = await response.json();
-        await this.refreshProfile(profileId);
+        
+        // Cập nhật local state trực tiếp
+        this.state.profiles = this.state.profiles.map(p => 
+            p.id === profileId ? updatedProfile : p
+        );
+
         return updatedProfile;
     },
 
@@ -220,7 +260,12 @@ window.AppStore = {
         }
 
         const updatedProfile = await response.json();
-        await this.refreshProfile(profileId);
+        
+        // Cập nhật local state trực tiếp
+        this.state.profiles = this.state.profiles.map(p => 
+            p.id === profileId ? updatedProfile : p
+        );
+
         return updatedProfile;
     }
 };
