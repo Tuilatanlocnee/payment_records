@@ -401,7 +401,7 @@ function parseDocxToText(buffer) {
     const bodyContent = bodyMatch[1];
 
     // Lấy tất cả các phần tử con cấp cao nhất của w:body (w:p hoặc w:tbl)
-    const elementRegex = /(<w:p\b[^>]*>[\s\S]*?<\/w:p>|<w:tbl\b[^>]*>[\s\S]*?<\/w:tbl>)/g;
+    const elementRegex = /(<w:p\b[^>]*\/>|<w:p\b[^>]*>[\s\S]*?<\/w:p>|<w:tbl\b[^>]*>[\s\S]*?<\/w:tbl>)/g;
     let elementMatch;
     let elements = [];
 
