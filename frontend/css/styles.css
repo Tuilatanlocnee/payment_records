@@ -1264,38 +1264,45 @@ form {
     background-color: #f8fafc;
 }
 
+/* Nút quay lại trên Mobile mặc định ẩn trên Desktop */
+.btn-mobile-back {
+    display: none !important;
+}
+
 /* ==========================================================================
-   19. Thiết kế Responsive thích ứng điện thoại di động (Stacked Layout)
+   19. Thiết kế Responsive thích ứng điện thoại di động (Mobile Optimized Layout)
    ========================================================================== */
 @media (max-width: 768px) {
     body {
-        overflow-y: auto !important;
-        height: auto !important;
+        overflow: hidden !important;
+        height: 100vh !important;
     }
     
+    /* Tối ưu hóa Header trên Mobile dạng thanh ngang phẳng */
     .app-header {
-        height: auto !important;
-        min-height: 56px;
-        flex-direction: column;
-        align-items: stretch;
-        padding: 10px 16px !important;
-        gap: 6px;
+        height: 56px !important;
+        min-height: 56px !important;
+        flex-direction: row !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        padding: 0 16px !important;
+        gap: 0 !important;
     }
     
     .header-left {
-        width: 100%;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 4px;
+        width: auto !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: 0 !important;
     }
     
     .logo-container {
         justify-content: flex-start;
-        width: 100%;
+        width: auto !important;
     }
     
     .logo-img {
-        height: 20px !important; /* Logo cực kỳ gọn gàng trên màn hình nhỏ */
+        height: 22px !important;
     }
     
     .header-divider {
@@ -1303,21 +1310,16 @@ form {
     }
     
     .header-title {
-        font-size: 12px !important;
-        color: var(--text-muted);
-        width: 100%;
-        margin-top: 1px;
+        display: none !important; /* Ẩn dòng chữ hoa quá dài trên màn hình di động */
     }
     
     .header-right {
-        position: absolute;
-        right: 16px;
-        top: 6px;
+        position: static !important;
     }
     
     #btn-create-profile {
-        width: 32px;
-        height: 32px;
+        width: 34px;
+        height: 34px;
         padding: 0 !important;
         border-radius: 50% !important;
     }
@@ -1328,44 +1330,84 @@ form {
     
     #btn-create-profile i {
         margin: 0 !important;
-        width: 16px;
-        height: 16px;
+        width: 18px;
+        height: 18px;
     }
 
     .app-container {
         flex-direction: column !important;
-        height: auto !important;
-        overflow: visible !important;
+        height: calc(100vh - 56px) !important;
+        overflow: hidden !important;
     }
     
-    .app-sidebar {
+    /* Khi CHƯA chọn hồ sơ: Hiện Sidebar chiếm toàn bộ màn hình, ẩn Main Content */
+    .app-container:not(.has-active-profile) .app-sidebar {
+        display: flex !important;
         width: 100% !important;
-        height: auto !important;
+        height: 100% !important;
         border-right: none !important;
-        border-bottom: 1px solid var(--border-color);
-        overflow: visible !important;
+        overflow: hidden !important;
+    }
+    .app-container:not(.has-active-profile) .app-main {
+        display: none !important;
+    }
+    
+    /* Khi ĐÃ chọn hồ sơ: Ẩn Sidebar, hiện Main Content và cho phép tự cuộn dọc */
+    .app-container.has-active-profile .app-sidebar {
+        display: none !important;
+    }
+    .app-container.has-active-profile .app-main {
+        display: block !important;
+        width: 100% !important;
+        height: 100% !important;
+        padding: 16px !important;
+        overflow-y: auto !important;
     }
     
     .profile-list {
-        max-height: 180px;
-        overflow-y: auto;
+        max-height: none !important;
+        flex: 1 !important;
+        overflow-y: auto !important;
     }
     
-    .app-main {
-        width: 100% !important;
-        height: auto !important;
-        padding: 12px !important;
-        overflow: visible !important;
+    /* Hiển thị nút quay lại danh sách trên Mobile */
+    .btn-mobile-back {
+        display: inline-flex !important;
+    }
+    
+    /* Tối ưu hóa khoảng đệm (padding) của card trên Mobile để tăng không gian hiển thị */
+    .card {
+        padding: 16px !important;
+    }
+    
+    /* Tối ưu hóa bảng cụm từ lỗi trên mobile */
+    .red-phrases-table th,
+    .red-phrases-table td {
+        padding: 8px 10px !important;
     }
     
     .preview-split-container {
         height: auto !important;
         grid-template-columns: 1fr !important;
         gap: 12px !important;
+        padding: 10px !important;
     }
     
     .preview-column {
-        height: 280px !important;
+        height: 300px !important;
+    }
+    
+    /* Tối ưu hóa modal popup trên di động tránh bị sát viền */
+    .modal-content {
+        width: calc(100% - 32px) !important;
+        margin: 0 16px !important;
+    }
+}
+
+/* Hoạt ảnh xoay cho vòng tải (loading spinner) */
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
     }
 }
 

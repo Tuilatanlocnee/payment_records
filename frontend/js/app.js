@@ -687,6 +687,16 @@ function renderActiveProfile() {
     const activeProfile = AppStore.getActiveProfile();
     Components.renderProfileDetail(activeProfile, currentSearchQuery);
 
+    // Thêm hoặc xóa class has-active-profile để phục vụ responsive trên mobile
+    const appContainer = document.querySelector('.app-container');
+    if (appContainer) {
+        if (activeProfile) {
+            appContainer.classList.add('has-active-profile');
+        } else {
+            appContainer.classList.remove('has-active-profile');
+        }
+    }
+
     // Duy trì hiển thị nút Hủy tìm kiếm nếu đang có từ khóa tìm kiếm tích cực
     if (currentSearchQuery) {
         const btnClearSearch = document.getElementById('btn-clear-search');

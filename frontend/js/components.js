@@ -114,6 +114,11 @@ window.Components = {
         const hasReplacements = profile.replacements && profile.replacements.length > 0;
 
         container.innerHTML = `
+            <!-- Nút quay lại trên Mobile -->
+            <button class="btn btn-secondary btn-mobile-back" onclick="document.querySelector('.logo-container').click()" style="margin-bottom: 12px; display: none; width: fit-content; align-items: center; gap: 6px;">
+                <i data-lucide="arrow-left"></i> Quay lại danh sách
+            </button>
+
             <!-- Tiêu đề chi tiết hồ sơ -->
             <div class="detail-header">
                 <div class="detail-title-wrapper" style="min-width: 0;">
