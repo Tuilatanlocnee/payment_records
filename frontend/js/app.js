@@ -12,6 +12,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         await AppStore.init();
     } catch (e) {
         showToast("Lỗi kết nối Backend API. Vui lòng đảm bảo Backend đã chạy.", "danger");
+    } finally {
+        // Ẩn màn hình loading khởi tạo khi API đã phản hồi
+        const loadingOverlay = document.getElementById('app-loading-overlay');
+        if (loadingOverlay) {
+            loadingOverlay.classList.add('hidden');
+        }
     }
 
     // Khởi động giao diện chính
