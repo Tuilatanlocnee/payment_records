@@ -602,22 +602,32 @@ async function handleUploadedFiles(filesList) {
     const activeProfile = AppStore.getActiveProfile();
     if (!activeProfile) return;
 
-    let successCount = 0;
-    let errorCount = 0;
+    // Hiển thị trạng thái loading trực quan trên dropzone để người dùng biết hệ thống đang xử lý
+    const dropzone = document.getElementById('file-dropzone');
+    let originalHtml = "";
+    if (dropzone) {
+        originalHtml = dropzone.innerHTML;
+        dropzone.style.pointerEvents = 'none'; // Khóa click tạm thời
+        dropzone.innerHTML = `
+            <span class="loading-spinner" style="display: inline-block; width: 40px; height: 40px; border: 4px solid rgba(0, 86, 158, 0.2); border-radius: 50%; border-top-color: var(--primary-color); animation: spin 1s ease-in-out infinite; margin-bottom: 8px;"></span>
+            <p style="font-weight: 600; color: var(--primary-color); margin-bottom: 4px;">Đang tải lên và trích xuất tài liệu, vui lòng đợi...</p>
+            <small style="color: var(--text-muted);">Hệ thống đang xử lý và đọc cấu trúc XML của file Word.</small>
+        `;
+    }
 
-    for (let i = 0; i < filesList.length; i++) {
-        const file = filesList[i];
+    // Thực hiện tải lên song song toàn bộ file bằng Promise.all để tăng tốc độ tối đa
+    const uploadPromises = Array.from(filesList).map(async (file) => {
         const fileExtension = file.name.split('.').pop().toLowerCase();
 
         if (fileExtension === 'doc') {
             showToast(`Từ chối file "${file.name}": Hệ thống đã chuẩn hóa chỉ nhận file .docx. Vui lòng Save As sang .docx.`, 'danger');
-            continue;
+            return { success: false, fileName: file.name, isDoc: true };
         }
 
         try {
             let content;
             if (fileExtension === 'docx') {
-                // Đọc file docx dưới dạng Base64 để backend tự giải nén và trích xuất
+                // Đọc file docx dưới dạng Base64
                 content = await readFileAsDataURL(file);
             } else {
                 // Các tệp text thông thường
@@ -629,20 +639,44 @@ async function handleUploadedFiles(filesList) {
                 size: file.size,
                 content: content
             });
-            successCount++;
+            return { success: true, fileName: file.name };
         } catch (err) {
-            errorCount++;
-            console.error(err);
+            console.error(`Lỗi khi tải file ${file.name} lên server:`, err);
+            return { success: false, fileName: file.name, isDoc: false };
         }
-    }
+    });
 
-    if (successCount > 0) {
-        showToast(`Đã thêm thành công ${successCount} tài liệu vào hồ sơ.`, 'success');
-        renderProfiles();
-        renderActiveProfile();
-    }
-    if (errorCount > 0) {
-        showToast(`Không thể thêm ${errorCount} file do trùng tên trong hệ thống.`, 'danger');
+    try {
+        const results = await Promise.all(uploadPromises);
+
+        let successCount = 0;
+        let errorCount = 0;
+        results.forEach(res => {
+            if (res.success) {
+                successCount++;
+            } else if (!res.isDoc) {
+                errorCount++;
+            }
+        });
+
+        if (successCount > 0) {
+            showToast(`Đã thêm thành công ${successCount} tài liệu vào hồ sơ.`, 'success');
+            renderProfiles();
+            renderActiveProfile();
+        }
+        if (errorCount > 0) {
+            showToast(`Không thể thêm ${errorCount} file do trùng tên trong hệ thống hoặc lỗi mạng.`, 'danger');
+        }
+    } catch (globalErr) {
+        console.error("Lỗi đồng bộ tải lên:", globalErr);
+        showToast("Có lỗi xảy ra trong quá trình tải tài liệu lên.", "danger");
+    } finally {
+        // Khôi phục lại trạng thái ban đầu của dropzone
+        if (dropzone) {
+            dropzone.innerHTML = originalHtml;
+            dropzone.style.pointerEvents = 'auto';
+            safeCreateIcons();
+        }
     }
 }
 
