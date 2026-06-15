@@ -6,22 +6,33 @@
 
 let currentSearchQuery = "";
 
-document.addEventListener('DOMContentLoaded', async () => {
-    // Khởi tạo trạng thái store bằng cách gọi API
-    try {
-        await AppStore.init();
-    } catch (e) {
-        showToast("Lỗi kết nối Backend API. Vui lòng đảm bảo Backend đã chạy.", "danger");
-    } finally {
-        // Ẩn màn hình loading khởi tạo khi API đã phản hồi
-        const loadingOverlay = document.getElementById('app-loading-overlay');
-        if (loadingOverlay) {
-            loadingOverlay.classList.add('hidden');
-        }
+document.addEventListener('DOMContentLoaded', () => {
+    // Đăng ký sự kiện nút "Bắt đầu làm việc ngay" trên Landing Page
+    const btnStart = document.getElementById('btn-start-app');
+    if (btnStart) {
+        btnStart.addEventListener('click', async () => {
+            const landingPage = document.getElementById('landing-page');
+            const appWorkspace = document.getElementById('app-workspace');
+            const loadingOverlay = document.getElementById('app-loading-overlay');
+            
+            // 1. Chuyển đổi giao diện sang Workspace và hiển thị màn hình đánh thức server
+            if (landingPage) landingPage.classList.add('hidden');
+            if (appWorkspace) appWorkspace.classList.remove('hidden');
+            if (loadingOverlay) loadingOverlay.classList.remove('hidden');
+            
+            // 2. Gọi API đánh thức server và tải dữ liệu
+            try {
+                await AppStore.init();
+            } catch (e) {
+                showToast("Lỗi kết nối Backend API. Vui lòng đảm bảo Backend đã chạy.", "danger");
+            } finally {
+                if (loadingOverlay) loadingOverlay.classList.add('hidden');
+            }
+            
+            // 3. Khởi động Workspace chính (bind events)
+            initApp();
+        });
     }
-
-    // Khởi động giao diện chính
-    initApp();
 });
 
 /**
