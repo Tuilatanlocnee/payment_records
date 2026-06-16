@@ -65,17 +65,22 @@
 /* Phông chữ và màu sắc nhận diện thương hiệu MobiFone chuẩn */
 .brand-mobifone {
     font-family: 'Montserrat', 'Inter', system-ui, -apple-system, sans-serif;
-    font-weight: 700;
-    letter-spacing: -0.5px;
+    font-weight: 800; /* Dày dặn vững chãi giống logo thực tế */
+    letter-spacing: -1.2px; /* Khoảng cách chữ khít sát như logo */
     display: inline-flex;
+    text-transform: lowercase !important; /* Đảm bảo chữ thường hoàn toàn */
+    -webkit-text-fill-color: initial !important; /* Ghi đè hiệu ứng trong suốt của parent hero gradient */
+    background: none !important;
 }
 .brand-mobifone .mobi-blue {
-    color: var(--mobi-blue);
-    text-transform: none;
+    color: var(--mobi-blue) !important;
+    -webkit-text-fill-color: var(--mobi-blue) !important;
+    text-transform: lowercase !important;
 }
 .brand-mobifone .fone-red {
-    color: var(--fone-red);
-    text-transform: none;
+    color: var(--fone-red) !important;
+    -webkit-text-fill-color: var(--fone-red) !important;
+    text-transform: lowercase !important;
 }
 
 /* 2. Reset CSS cơ bản và Phông chữ thống nhất */
