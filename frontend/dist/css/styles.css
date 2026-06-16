@@ -64,46 +64,18 @@
 
 /* Phông chữ và màu sắc nhận diện thương hiệu MobiFone chuẩn */
 .brand-mobifone {
-    font-family: 'Source Sans 3', 'UTM Mobifone KT', 'Myriad Pro', 'Inter', system-ui, -apple-system, sans-serif;
-    font-weight: 700; /* Source Sans 3 Bold rất giống nét chữ thon gọn của logo */
-    letter-spacing: -0.8px; /* Khoảng cách chữ khít sát của logo */
     display: inline-flex;
-    align-items: baseline;
-    text-transform: lowercase !important; /* Đảm bảo chữ thường hoàn toàn */
+    font-weight: 750; /* Giữ độ dày chữ đậm đà chuyên nghiệp */
     -webkit-text-fill-color: initial !important; /* Ghi đè hiệu ứng trong suốt của parent hero gradient */
     background: none !important;
 }
 .brand-mobifone .mobi-blue {
     color: var(--mobi-blue) !important;
     -webkit-text-fill-color: var(--mobi-blue) !important;
-    text-transform: lowercase !important;
-}
-.brand-mobifone .mobi-i-stem {
-    color: var(--mobi-blue) !important;
-    -webkit-text-fill-color: var(--mobi-blue) !important;
-    text-transform: lowercase !important;
-    position: relative;
-    display: inline-block;
-    line-height: 1;
-}
-/* Dấu chấm tròn màu đỏ chuẩn trên đầu chữ i của MobiFone */
-.brand-mobifone .mobi-i-stem::after {
-    content: '';
-    position: absolute;
-    top: 0.16em; /* Định vị chấm tròn phía trên thân chữ i dotless */
-    left: 50%;
-    transform: translateX(-50%);
-    width: 0.18em;
-    height: 0.18em;
-    background-color: var(--fone-red) !important;
-    -webkit-text-fill-color: var(--fone-red) !important;
-    border-radius: 50%;
-    display: block;
 }
 .brand-mobifone .fone-red {
     color: var(--fone-red) !important;
     -webkit-text-fill-color: var(--fone-red) !important;
-    text-transform: lowercase !important;
 }
 
 /* 2. Reset CSS cơ bản và Phông chữ thống nhất */
@@ -114,7 +86,7 @@
 }
 
 body, input, button, select, textarea {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Arial', 'Inter', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
@@ -184,7 +156,7 @@ h1, h2, h3, h4 {
 }
 
 .header-title {
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Arial', sans-serif;
     font-size: 14px;
     font-weight: 800;
     letter-spacing: 0.5px;
