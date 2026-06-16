@@ -6,7 +6,7 @@
 
 let currentSearchQuery = "";
 
-document.addEventListener('DOMContentLoaded', () => {
+const initLanding = () => {
     // Khởi tạo các icons cho Landing Page ngay khi tải trang
     if (window.safeCreateIcons) {
         window.safeCreateIcons();
@@ -44,7 +44,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnStartNav) {
         btnStartNav.addEventListener('click', handleStartApp);
     }
-});
+};
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initLanding);
+} else {
+    initLanding();
+}
 
 /**
  * Khởi tạo các sự kiện và hiển thị ban đầu
