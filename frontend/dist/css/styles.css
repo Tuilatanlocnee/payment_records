@@ -64,10 +64,11 @@
 
 /* Phông chữ và màu sắc nhận diện thương hiệu MobiFone chuẩn */
 .brand-mobifone {
-    font-family: 'Montserrat', 'Inter', system-ui, -apple-system, sans-serif;
-    font-weight: 800; /* Dày dặn vững chãi giống logo thực tế */
-    letter-spacing: -1.2px; /* Khoảng cách chữ khít sát như logo */
+    font-family: 'Source Sans 3', 'UTM Mobifone KT', 'Myriad Pro', 'Inter', system-ui, -apple-system, sans-serif;
+    font-weight: 700; /* Source Sans 3 Bold rất giống nét chữ thon gọn của logo */
+    letter-spacing: -0.8px; /* Khoảng cách chữ khít sát của logo */
     display: inline-flex;
+    align-items: baseline;
     text-transform: lowercase !important; /* Đảm bảo chữ thường hoàn toàn */
     -webkit-text-fill-color: initial !important; /* Ghi đè hiệu ứng trong suốt của parent hero gradient */
     background: none !important;
@@ -76,6 +77,28 @@
     color: var(--mobi-blue) !important;
     -webkit-text-fill-color: var(--mobi-blue) !important;
     text-transform: lowercase !important;
+}
+.brand-mobifone .mobi-i-stem {
+    color: var(--mobi-blue) !important;
+    -webkit-text-fill-color: var(--mobi-blue) !important;
+    text-transform: lowercase !important;
+    position: relative;
+    display: inline-block;
+    line-height: 1;
+}
+/* Dấu chấm tròn màu đỏ chuẩn trên đầu chữ i của MobiFone */
+.brand-mobifone .mobi-i-stem::after {
+    content: '';
+    position: absolute;
+    top: 0.16em; /* Định vị chấm tròn phía trên thân chữ i dotless */
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0.18em;
+    height: 0.18em;
+    background-color: var(--fone-red) !important;
+    -webkit-text-fill-color: var(--fone-red) !important;
+    border-radius: 50%;
+    display: block;
 }
 .brand-mobifone .fone-red {
     color: var(--fone-red) !important;
