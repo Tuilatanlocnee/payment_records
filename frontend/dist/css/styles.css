@@ -1514,10 +1514,7 @@ form {
 }
 
 .hero-title span {
-    color: var(--primary-color);
-    background: linear-gradient(135deg, #00569e 0%, #0084f0 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: inherit;
 }
 
 .hero-subtitle {
