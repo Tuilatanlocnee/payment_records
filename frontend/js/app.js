@@ -1893,12 +1893,22 @@ function showMailMergeMenu(x, y, variables) {
         `;
         // Thêm các biến
         groups[groupName].forEach(v => {
-            itemsHtml += `
-                <div class="context-menu-item" data-name="${v.name}" data-value="${v.value || ''}">
-                    <span class="var-name">${v.name}</span>
-                    <span class="var-val" title="${v.value || ''}">${v.value || '(Trống)'}</span>
-                </div>
-            `;
+            const hasSub = v.value && typeof v.value === 'string' && v.value.includes('\n');
+            if (hasSub) {
+                itemsHtml += `
+                    <div class="context-menu-item has-submenu" data-name="${v.name}" data-value="${v.value}">
+                        <span class="var-name">${v.name}</span>
+                        <span class="var-val" style="color: var(--primary-color); font-weight: bold;">chọn dòng ▸</span>
+                    </div>
+                `;
+            } else {
+                itemsHtml += `
+                    <div class="context-menu-item" data-name="${v.name}" data-value="${v.value || ''}">
+                        <span class="var-name">${v.name}</span>
+                        <span class="var-val" title="${v.value || ''}">${v.value || '(Trống)'}</span>
+                    </div>
+                `;
+            }
         });
     });
     
@@ -1911,11 +1921,115 @@ function showMailMergeMenu(x, y, variables) {
     if (window.safeCreateIcons) {
         window.safeCreateIcons();
     }
-    
-    // Đăng ký sự kiện click chọn biến chèn
+
+    // Biến lưu trữ active state của submenu để đóng khi click ra ngoài
+    let activeSubmenu = null;
+
+    // Hàm render submenu
+    const renderSubmenu = (item, varName, varValue) => {
+        removeMailMergeSubmenu();
+
+        const rect = item.getBoundingClientRect();
+        const submenu = document.createElement('div');
+        submenu.className = 'mail-merge-submenu';
+        
+        // Định vị submenu
+        let leftPos = rect.right + window.scrollX + 2;
+        // Nếu submenu tràn mép phải màn hình, hiển thị bên trái menu chính
+        if (leftPos + 260 > window.innerWidth) {
+            leftPos = rect.left + window.scrollX - 242;
+        }
+        submenu.style.left = `${leftPos}px`;
+        submenu.style.top = `${rect.top + window.scrollY}px`;
+
+        const lines = varValue.split('\n').map(l => l.trim());
+        let subItemsHtml = "";
+        lines.forEach((line, lineIdx) => {
+            const rowNum = lineIdx + 1;
+            subItemsHtml += `
+                <div class="submenu-item" data-row="${rowNum}" data-value="${line}">
+                    <span class="row-num">Dòng ${rowNum}:</span>
+                    <span class="row-val" title="${line}">${line || '(Trống)'}</span>
+                </div>
+            `;
+        });
+
+        submenu.innerHTML = subItemsHtml;
+        document.body.appendChild(submenu);
+        activeSubmenu = submenu;
+
+        // Đăng ký sự kiện click chọn dòng trong submenu
+        submenu.addEventListener('click', async (se) => {
+            const subItem = se.target.closest('.submenu-item');
+            if (subItem) {
+                const rowNum = parseInt(subItem.getAttribute('data-row')) || 1;
+                const lineVal = subItem.getAttribute('data-value');
+
+                restoreSelectionRange();
+
+                const span = document.createElement('span');
+                span.className = 'mail-merge-tag';
+                span.setAttribute('data-variable', varName);
+                span.setAttribute('contenteditable', 'true');
+                span.textContent = lineVal || `{{${varName}}}`;
+
+                insertElementAtCursor(span);
+
+                // Tự động đồng bộ dropdown dòng xem trước sang dòng vừa chọn
+                if (window.AppWorkspaceState) {
+                    window.AppWorkspaceState.previewRowIndex = rowNum;
+                }
+                const selectRow = document.getElementById('select-preview-row');
+                if (selectRow) {
+                    selectRow.value = rowNum;
+                }
+
+                // Cập nhật lại toàn bộ tài liệu theo dòng preview mới
+                const activeProfile = AppStore.getActiveProfile();
+                if (activeProfile) {
+                    const selectPreviewFile = document.getElementById('select-preview-file');
+                    const fileId = selectPreviewFile ? selectPreviewFile.value : activeProfile.files[0].id;
+                    const fileObj = activeProfile.files.find(f => f.id === fileId);
+                    if (fileObj) {
+                        Components.updateFilePreview(fileObj, activeProfile, "");
+                    }
+                }
+
+                // Lưu lại thay đổi tức thì
+                await saveEditorContent();
+                removeMailMergeContextMenu();
+            }
+        });
+    };
+
+    // Theo dõi sự kiện mouseover và click trên các menu items
+    menu.addEventListener('mouseover', (me) => {
+        const item = me.target.closest('.context-menu-item');
+        if (item) {
+            if (item.classList.contains('has-submenu')) {
+                const varName = item.getAttribute('data-name');
+                const varValue = item.getAttribute('data-value');
+                renderSubmenu(item, varName, varValue);
+            } else {
+                // Di chuột qua item không có submenu thì đóng submenu hiện tại
+                removeMailMergeSubmenu();
+            }
+        }
+    });
+
+    // Sự kiện click trên menu chính
     menu.addEventListener('click', async (me) => {
         const item = me.target.closest('.context-menu-item');
         if (item) {
+            if (item.classList.contains('has-submenu')) {
+                // Biến có submenu: click sẽ kích hoạt render/focus submenu thay vì chèn trực tiếp dính chùm
+                me.stopPropagation();
+                const varName = item.getAttribute('data-name');
+                const varValue = item.getAttribute('data-value');
+                renderSubmenu(item, varName, varValue);
+                return;
+            }
+
             const varName = item.getAttribute('data-name');
             const varValue = item.getAttribute('data-value');
             
@@ -1937,7 +2051,9 @@ function showMailMergeMenu(x, y, variables) {
     
     // Đóng menu khi click ra ngoài
     const closeMenu = (ce) => {
-        if (!menu.contains(ce.target)) {
+        const isClickInsideMenu = menu.contains(ce.target);
+        const isClickInsideSubmenu = activeSubmenu && activeSubmenu.contains(ce.target);
+        if (!isClickInsideMenu && !isClickInsideSubmenu) {
             removeMailMergeContextMenu();
             document.removeEventListener('click', closeMenu);
         }
@@ -1952,6 +2068,17 @@ function showMailMergeMenu(x, y, variables) {
  */
 function removeMailMergeContextMenu() {
     const existing = document.querySelector('.mail-merge-context-menu');
+    if (existing) {
+        existing.remove();
+    }
+    removeMailMergeSubmenu();
+}
+
+/**
+ * Xóa menu con (submenu) Mail Merge
+ */
+function removeMailMergeSubmenu() {
+    const existing = document.querySelector('.mail-merge-submenu');
     if (existing) {
         existing.remove();
     }

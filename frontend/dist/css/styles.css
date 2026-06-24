@@ -2563,3 +2563,48 @@ form {
     transform: translateY(-1.5px);
     box-shadow: var(--shadow-md);
 }
+
+/* Kiểu menu con (submenu) cho các biến Mail Merge có nhiều dòng giá trị */
+.mail-merge-submenu {
+    position: absolute;
+    background-color: #ffffff;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    z-index: 10001;
+    min-width: 240px;
+    max-width: 320px;
+    max-height: 280px;
+    overflow-y: auto;
+    padding: 6px 0;
+    animation: fadeIn var(--transition-fast);
+}
+
+.submenu-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+    font-size: 12.5px;
+    color: var(--text-primary);
+}
+
+.submenu-item:hover {
+    background-color: var(--primary-light);
+    color: var(--primary-color);
+}
+
+.submenu-item .row-num {
+    color: var(--text-muted);
+    font-size: 11px;
+    margin-right: 8px;
+    font-weight: 600;
+}
+
+.submenu-item .row-val {
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
