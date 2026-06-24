@@ -945,8 +945,8 @@ window.Components = {
                                     </div>
                                     <div class="toolbar-group">
                                         <select class="toolbar-select font-name-select" title="Phông chữ">
-                                            <option value="Arial" selected>Arial</option>
-                                            <option value="Times New Roman">Times New Roman</option>
+                                            <option value="Arial">Arial</option>
+                                            <option value="Times New Roman" selected>Times New Roman</option>
                                             <option value="Courier New">Courier New</option>
                                             <option value="Inter">Inter</option>
                                             <option value="Montserrat">Montserrat</option>
@@ -1160,6 +1160,21 @@ window.Components = {
     },
 
     /**
+     * Tự động convert placeholder {{TEN_BIEN}} thành thẻ mail-merge-tag
+     */
+    convertPlaceholdersToTags(htmlContent, variables) {
+        if (!htmlContent) return "";
+        const placeholderRegex = /\{\{\s*([^}]+?)\s*\}\}/g;
+        return htmlContent.replace(placeholderRegex, (match, varName) => {
+            const cleanVarName = varName.trim();
+            const variableObj = variables.find(v => v.name === cleanVarName);
+            const value = variableObj ? (variableObj.value || "") : "";
+            const displayText = value || `{{${cleanVarName}}}`;
+            return `<span class="mail-merge-tag" data-variable="${cleanVarName}" contenteditable="true">${displayText}</span>`;
+        });
+    },
+
+    /**
      * Cập nhật nội dung chi tiết cho màn hình Preview cụ thể của file
      */
     updateFilePreview(file, profile, activeSearchQuery = "") {
@@ -1168,20 +1183,27 @@ window.Components = {
 
         if (!file || !editedContainer) return;
 
-        const replacements = profile ? profile.replacements : [];
+        const variables = profile ? (profile.variables || []) : [];
 
-        if (originalContainer) {
-            originalContainer.innerHTML = this.formatContentForPreview(file.originalContent, 'original', replacements, activeSearchQuery);
+        // Xử lý nạp nội dung cho editor
+        let editedHtml = file.currentContent || "";
+        const hasBlockTags = /<div|<p|<table/i.test(editedHtml);
+        if (!hasBlockTags) {
+            const lines = editedHtml.split('\n');
+            editedHtml = lines.map(line => `<div>${line.trim() === "" ? '<br>' : line}</div>`).join('');
         }
         
-        // Nạp nội dung vào editor dựa trên định dạng (Plain text vs HTML đã chỉnh sửa)
-        // Nếu đã có thẻ div hoặc p (HTML sạch từ trình soạn thảo), ta nạp thẳng.
-        // Ngược lại, nếu là file docx mới import hoặc file text thuần, ta chạy qua bộ định dạng thông minh để phân tách dòng và định dạng văn bản.
-        const hasBlockTags = /<div|<p/i.test(file.currentContent || "");
-        if (hasBlockTags) {
-            editedContainer.innerHTML = file.currentContent || "";
-        } else {
-            editedContainer.innerHTML = this.formatContentForPreview(file.currentContent, 'edited', replacements, activeSearchQuery);
+        // Chuyển đổi placeholders thành tags trực quan trên editor
+        editedContainer.innerHTML = this.convertPlaceholdersToTags(editedHtml, variables);
+
+        // Tương tự cho originalContainer nếu có
+        if (originalContainer) {
+            let originalHtml = file.originalContent || "";
+            if (!/<div|<p|<table/i.test(originalHtml)) {
+                const lines = originalHtml.split('\n');
+                originalHtml = lines.map(line => `<div>${line.trim() === "" ? '<br>' : line}</div>`).join('');
+            }
+            originalContainer.innerHTML = this.convertPlaceholdersToTags(originalHtml, variables);
         }
     }
 };

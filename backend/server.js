@@ -345,19 +345,36 @@ function parseParagraph(paragraphXml, relsMap, zip) {
           }
         }
         
-        let sizeInfo = "";
+        let customStyle = "max-width: 100%; height: auto; display: block; margin: 10px auto;";
         if (widthPt && heightPt) {
           const wUnit = typeof widthPt === 'number' ? widthPt + 'pt' : widthPt;
           const hUnit = typeof heightPt === 'number' ? heightPt + 'pt' : heightPt;
-          sizeInfo = `|width:${wUnit};height:${hUnit}`;
+          customStyle = `width: ${wUnit}; height: ${hUnit}; max-width: 100%; display: block; margin: 10px auto;`;
         }
         
-        imgTags += `\n[IMAGE:data:${mime};base64,${imgBase64}${sizeInfo}]\n`;
+        imgTags += `<img src="data:${mime};base64,${imgBase64}" style="${customStyle} border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); display: inline-block;" />`;
       }
     }
   }
+  
+  // Trích xuất thuộc tính căn lề của paragraph từ XML
+  let alignStyle = "";
+  const pPrMatch = paragraphXml.match(/<w:pPr\b[^>]*>([\s\S]*?)<\/w:pPr>/);
+  if (pPrMatch) {
+    const jcMatch = pPrMatch[1].match(/<w:jc\b[^>]*\bw:val="([^"]+)"/);
+    if (jcMatch) {
+      const val = jcMatch[1];
+      if (val === 'center') alignStyle = 'text-align: center;';
+      else if (val === 'right') alignStyle = 'text-align: right;';
+      else if (val === 'both') alignStyle = 'text-align: justify; text-justify: inter-word;';
+    }
+  }
+  const styleAttr = alignStyle ? ` style="${alignStyle}"` : "";
+  
   paragraphText += imgTags;
-  return decodeXmlEntities(paragraphText).normalize('NFC');
+  const contentText = paragraphText.trim() === "" ? "<br>" : decodeXmlEntities(paragraphText).normalize('NFC');
+  
+  return `<div${styleAttr}>${contentText}</div>`;
 }
 
 // Hàm phân tích một bảng biểu <w:tbl> từ cấu trúc XML Word
@@ -379,7 +396,7 @@ function parseTable(tableXml, relsMap, zip) {
       while ((pMatch = pRegex.exec(cellContent)) !== null) {
         cellParagraphs.push(parseParagraph(pMatch[0], relsMap, zip));
       }
-      const cellText = cellParagraphs.join('<br>');
+      const cellText = cellParagraphs.join(''); // các paragraph đã là thẻ div tự xuống dòng
       cellsHtml.push(`<td>${cellText}</td>`);
     }
     rowsHtml.push(`<tr>${cellsHtml.join('')}</tr>`);
