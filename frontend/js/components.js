@@ -1174,14 +1174,14 @@ window.Components = {
             originalContainer.innerHTML = this.formatContentForPreview(file.originalContent, 'original', replacements, activeSearchQuery);
         }
         
-        // Nạp nội dung vào editor dựa trên định dạng (Plain text vs HTML)
-        const isHtml = /<div|<p|<br|<table|<span/i.test(file.currentContent || "");
-        if (isHtml) {
+        // Nạp nội dung vào editor dựa trên định dạng (Plain text vs HTML đã chỉnh sửa)
+        // Nếu đã có thẻ div hoặc p (HTML sạch từ trình soạn thảo), ta nạp thẳng.
+        // Ngược lại, nếu là file docx mới import hoặc file text thuần, ta chạy qua bộ định dạng thông minh để phân tách dòng và định dạng văn bản.
+        const hasBlockTags = /<div|<p/i.test(file.currentContent || "");
+        if (hasBlockTags) {
             editedContainer.innerHTML = file.currentContent || "";
         } else {
-            // Chuyển đổi văn bản thuần sang cấu trúc div/br phù hợp với soạn thảo contenteditable
-            const lines = (file.currentContent || "").split('\n');
-            editedContainer.innerHTML = lines.map(line => `<div>${line.trim() === "" ? '<br>' : line}</div>`).join('');
+            editedContainer.innerHTML = this.formatContentForPreview(file.currentContent, 'edited', replacements, activeSearchQuery);
         }
     }
 };
