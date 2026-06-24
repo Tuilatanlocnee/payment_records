@@ -14,6 +14,66 @@ window.safeCreateIcons = function() {
 
 window.Components = {
     /**
+     * Hàm helper lấy số dòng dữ liệu lớn nhất trong các biến
+     */
+    getMaxRowIndex(variables) {
+        if (!variables) return 1;
+        let maxMultiLineRows = 1;
+        variables.forEach(v => {
+            if (v.value && typeof v.value === 'string' && v.value.includes('\n')) {
+                const lines = v.value.split('\n').map(l => l.trim());
+                if (lines.length > maxMultiLineRows) {
+                    maxMultiLineRows = lines.length;
+                }
+            }
+        });
+        
+        const rowSuffixRegex = /^(.*)_(\d+)$/;
+        let maxSuffixRowIndex = 0;
+        variables.forEach(v => {
+            const match = v.name.match(rowSuffixRegex);
+            if (match) {
+                const rowNum = parseInt(match[2]);
+                if (rowNum > maxSuffixRowIndex) {
+                    maxSuffixRowIndex = rowNum;
+                }
+            }
+        });
+        
+        return Math.max(maxMultiLineRows, maxSuffixRowIndex);
+    },
+
+    /**
+     * Hàm helper lấy giá trị của một biến theo rowIndex
+     */
+    getVariableValue(variables, varName, rowIndex = 1) {
+        if (!variables) return "";
+        
+        // 1. Tìm biến có hậu tố dòng trước (Ví dụ: MA_HO_SO_1)
+        const targetVarName = `${varName}_${rowIndex}`;
+        const suffixVar = variables.find(v => v.name === targetVarName);
+        if (suffixVar) {
+            return suffixVar.value || "";
+        }
+
+        // 2. Tìm biến gốc không có hậu tố (Ví dụ: MA_HO_SO)
+        const baseVar = variables.find(v => v.name === varName);
+        if (baseVar) {
+            const val = baseVar.value || "";
+            if (typeof val === 'string' && val.includes('\n')) {
+                const lines = val.split('\n');
+                if (rowIndex - 1 < lines.length) {
+                    return lines[rowIndex - 1].trim();
+                }
+                return "";
+            }
+            return val;
+        }
+
+        return "";
+    },
+
+    /**
      * Định dạng kích thước file sang định dạng dễ đọc (KB, MB)
      */
     formatFileSize(bytes) {
@@ -425,12 +485,12 @@ window.Components = {
                                 </div>
                             </td>
                             <td style="width: 50%;">
-                                <input type="text" 
-                                       class="var-val-input field-value-input" 
-                                       value="${v.value || ''}" 
-                                       placeholder="(Trống)" 
-                                       data-name="${v.name}" 
-                                       data-group="${groupName}">
+                                <textarea class="var-val-input field-value-input" 
+                                          placeholder="(Trống hoặc nhập nhiều dòng)" 
+                                          data-name="${v.name}" 
+                                          data-group="${groupName}"
+                                          rows="1"
+                                          style="width: 100%; min-height: 38px; resize: vertical; padding: 8px 10px; font-size: 13px; line-height: 1.5; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background-color: var(--bg-primary); color: var(--text-primary); font-family: inherit; transition: border-color var(--transition-fast);">${v.value || ''}</textarea>
                             </td>
                             <td style="text-align: center; width: 10%;">
                                 <button class="btn-delete-field btn-delete-variable" data-name="${v.name}" data-group="${groupName}" title="Xóa trường này">
@@ -908,6 +968,28 @@ window.Components = {
             <option value="${file.id}" ${idx === 0 ? 'selected' : ''}>${file.name}</option>
         `).join('');
 
+        const maxRowIndex = this.getMaxRowIndex(profile.variables);
+        const currentPreviewRow = (window.AppWorkspaceState && window.AppWorkspaceState.previewRowIndex) || 1;
+        
+        let rowSelectorHtml = '';
+        if (maxRowIndex > 1) {
+            const rowOptions = Array.from({ length: maxRowIndex }, (_, i) => i + 1).map(r => `
+                <option value="${r}" ${r === currentPreviewRow ? 'selected' : ''}>Dòng ${r}</option>
+            `).join('');
+            
+            rowSelectorHtml = `
+                <div class="preview-row-selector" style="display: flex; align-items: center; gap: 8px;">
+                    <label for="select-preview-row" style="font-size: 13px; font-weight: 600; white-space: nowrap;">
+                        <i data-lucide="list-ordered" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px; color: var(--primary-color);"></i>
+                        Dòng dữ liệu xem trước:
+                    </label>
+                    <select id="select-preview-row" style="height: 32px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0 8px; font-size: 12px; background-color: var(--bg-primary); color: var(--text-primary); cursor: pointer;">
+                        ${rowOptions}
+                    </select>
+                </div>
+            `;
+        }
+
         return `
             <div class="card-header-toggle" id="preview-section-toggle" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;">
                 <div class="card-title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
@@ -919,11 +1001,14 @@ window.Components = {
             
             <div class="${bodyClass}" id="preview-section-body" style="${displayStyle} margin-top: 14px;">
                 <div class="preview-pane-wrapper">
-                    <div class="preview-selector">
-                        <label for="select-preview-file" style="font-size: 13px; font-weight: 600;">Chọn tài liệu soạn thảo:</label>
-                        <select id="select-preview-file">
-                            ${options}
-                        </select>
+                    <div class="preview-selector" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label for="select-preview-file" style="font-size: 13px; font-weight: 600;">Chọn tài liệu soạn thảo:</label>
+                            <select id="select-preview-file">
+                                ${options}
+                            </select>
+                        </div>
+                        ${rowSelectorHtml}
                     </div>
 
                     <!-- Trình soạn thảo Rich Text (Chỉ cần 1 văn bản) -->
@@ -945,8 +1030,8 @@ window.Components = {
                                     </div>
                                     <div class="toolbar-group">
                                         <select class="toolbar-select font-name-select" title="Phông chữ">
-                                            <option value="Arial" selected>Arial</option>
-                                            <option value="Times New Roman">Times New Roman</option>
+                                            <option value="Arial">Arial</option>
+                                            <option value="Times New Roman" selected>Times New Roman</option>
                                             <option value="Courier New">Courier New</option>
                                             <option value="Inter">Inter</option>
                                             <option value="Montserrat">Montserrat</option>
@@ -1160,6 +1245,33 @@ window.Components = {
     },
 
     /**
+     * Tự động convert placeholder {{TEN_BIEN}} thành thẻ mail-merge-tag
+     */
+    convertPlaceholdersToTags(htmlContent, variables, rowIndex = 1) {
+        if (!htmlContent) return "";
+        
+        // 1. Chuyển đổi placeholders {{TEN_BIEN}} thành thẻ span
+        const placeholderRegex = /\{\{\s*([^}]+?)\s*\}\}/g;
+        let updatedHtml = htmlContent.replace(placeholderRegex, (match, varName) => {
+            const cleanVarName = varName.trim();
+            const value = this.getVariableValue(variables, cleanVarName, rowIndex);
+            const displayText = value || `{{${cleanVarName}}}`;
+            return `<span class="mail-merge-tag" data-variable="${cleanVarName}" contenteditable="true">${displayText}</span>`;
+        });
+
+        // 2. Cập nhật nội dung các thẻ span mail-merge-tag hiện có theo rowIndex hiện tại
+        const spanRegex = /(<span\b[^>]*data-variable="([^"]+)"[^>]*>)([\s\S]*?)(<\/span>)/g;
+        updatedHtml = updatedHtml.replace(spanRegex, (match, pStart, varName, pContent, pEnd) => {
+            const cleanVarName = varName.trim();
+            const value = this.getVariableValue(variables, cleanVarName, rowIndex);
+            const displayText = value || `{{${cleanVarName}}}`;
+            return `${pStart}${displayText}${pEnd}`;
+        });
+
+        return updatedHtml;
+    },
+
+    /**
      * Cập nhật nội dung chi tiết cho màn hình Preview cụ thể của file
      */
     updateFilePreview(file, profile, activeSearchQuery = "") {
@@ -1168,20 +1280,28 @@ window.Components = {
 
         if (!file || !editedContainer) return;
 
-        const replacements = profile ? profile.replacements : [];
+        const variables = profile ? (profile.variables || []) : [];
+        const rowIndex = (window.AppWorkspaceState && window.AppWorkspaceState.previewRowIndex) || 1;
 
-        if (originalContainer) {
-            originalContainer.innerHTML = this.formatContentForPreview(file.originalContent, 'original', replacements, activeSearchQuery);
+        // Xử lý nạp nội dung cho editor
+        let editedHtml = file.currentContent || "";
+        const hasBlockTags = /<div|<p|<table/i.test(editedHtml);
+        if (!hasBlockTags) {
+            const lines = editedHtml.split('\n');
+            editedHtml = lines.map(line => `<div>${line.trim() === "" ? '<br>' : line}</div>`).join('');
         }
         
-        // Nạp nội dung vào editor dựa trên định dạng (Plain text vs HTML đã chỉnh sửa)
-        // Nếu đã có thẻ div hoặc p (HTML sạch từ trình soạn thảo), ta nạp thẳng.
-        // Ngược lại, nếu là file docx mới import hoặc file text thuần, ta chạy qua bộ định dạng thông minh để phân tách dòng và định dạng văn bản.
-        const hasBlockTags = /<div|<p/i.test(file.currentContent || "");
-        if (hasBlockTags) {
-            editedContainer.innerHTML = file.currentContent || "";
-        } else {
-            editedContainer.innerHTML = this.formatContentForPreview(file.currentContent, 'edited', replacements, activeSearchQuery);
+        // Chuyển đổi placeholders thành tags trực quan trên editor
+        editedContainer.innerHTML = this.convertPlaceholdersToTags(editedHtml, variables, rowIndex);
+
+        // Tương tự cho originalContainer nếu có
+        if (originalContainer) {
+            let originalHtml = file.originalContent || "";
+            if (!/<div|<p|<table/i.test(originalHtml)) {
+                const lines = originalHtml.split('\n');
+                originalHtml = lines.map(line => `<div>${line.trim() === "" ? '<br>' : line}</div>`).join('');
+            }
+            originalContainer.innerHTML = this.convertPlaceholdersToTags(originalHtml, variables, rowIndex);
         }
     }
 };

@@ -868,7 +868,7 @@ app.delete('/api/profiles/:id/files/:fileId', async (req, res) => {
 // Cập nhật danh sách biến Mail Merge
 app.put('/api/profiles/:id/variables', async (req, res) => {
   const { id } = req.params;
-  const { variables } = req.body; // [{ name, value, group }]
+  const { variables, rowIndex } = req.body; // [{ name, value, group }], rowIndex hiện tại
 
   try {
     const profile = await Profile.findById(id);
@@ -901,11 +901,18 @@ app.put('/api/profiles/:id/variables', async (req, res) => {
 
     // Đồng bộ lại tất cả file của toàn bộ các hồ sơ này
     const files = await File.find({ profileId: { $in: connectedProfileIds } });
+    const currentRowIndex = rowIndex || 1;
     for (const file of files) {
       let updatedContent = file.currentContent || "";
       for (const variable of targetProfile.variables) {
-        const regex = new RegExp(`(<span[^>]*class="[^"]*mail-merge-tag[^"]*"[^>]*data-variable="${variable.name}"[^>]*>)([\\s\\S]*?)(<\\/span>)`, 'g');
-        updatedContent = updatedContent.replace(regex, `$1${variable.value || ""}$3`);
+        let varDisplayVal = variable.value || "";
+        if (typeof varDisplayVal === 'string' && varDisplayVal.includes('\n')) {
+          const lines = varDisplayVal.split('\n');
+          const rIdx = currentRowIndex - 1;
+          varDisplayVal = rIdx < lines.length ? lines[rIdx].trim() : "";
+        }
+        const regex = new RegExp(`(<span\\b[^>]*data-variable="${variable.name}"[^>]*>)([\\s\\S]*?)(<\\/span>)`, 'g');
+        updatedContent = updatedContent.replace(regex, `$1${varDisplayVal}$3`);
       }
       if (updatedContent !== file.currentContent) {
         file.currentContent = updatedContent;
@@ -938,7 +945,8 @@ app.put('/api/profiles/:id/variables', async (req, res) => {
 // Cập nhật nội dung tài liệu (từ trình soạn thảo Rich Text)
 app.put('/api/profiles/:id/files/:fileId', async (req, res) => {
   const { id, fileId } = req.params;
-  const { htmlContent } = req.body;
+  const { htmlContent, rowIndex } = req.body;
+  const currentRowIndex = rowIndex || 1;
 
   try {
     const profile = await Profile.findById(id);
@@ -982,12 +990,49 @@ app.put('/api/profiles/:id/files/:fileId', async (req, res) => {
 
       const varIndex = updatedVariables.findIndex(v => v.name === varName);
       if (varIndex !== -1) {
-        if (updatedVariables[varIndex].value !== varValue) {
-          updatedVariables[varIndex].value = varValue;
-          variablesChanged = true;
+        let oldValue = updatedVariables[varIndex].value || "";
+        if (typeof oldValue === 'string' && oldValue.includes('\n')) {
+          const lines = oldValue.split('\n');
+          const rIdx = currentRowIndex - 1;
+          while (lines.length <= rIdx) {
+            lines.push("");
+          }
+          lines[rIdx] = varValue;
+          const newValue = lines.join('\n');
+          if (updatedVariables[varIndex].value !== newValue) {
+            updatedVariables[varIndex].value = newValue;
+            variablesChanged = true;
+          }
+        } else {
+          if (currentRowIndex > 1) {
+            const lines = [oldValue];
+            const rIdx = currentRowIndex - 1;
+            while (lines.length <= rIdx) {
+              lines.push("");
+            }
+            lines[rIdx] = varValue;
+            const newValue = lines.join('\n');
+            updatedVariables[varIndex].value = newValue;
+            variablesChanged = true;
+          } else {
+            if (updatedVariables[varIndex].value !== varValue) {
+              updatedVariables[varIndex].value = varValue;
+              variablesChanged = true;
+            }
+          }
         }
       } else {
-        updatedVariables.push({ name: varName, value: varValue, group: 'Chung' });
+        if (currentRowIndex > 1) {
+          const lines = [];
+          const rIdx = currentRowIndex - 1;
+          while (lines.length < rIdx) {
+            lines.push("");
+          }
+          lines.push(varValue);
+          updatedVariables.push({ name: varName, value: lines.join('\n'), group: 'Chung' });
+        } else {
+          updatedVariables.push({ name: varName, value: varValue, group: 'Chung' });
+        }
         variablesChanged = true;
       }
     }
@@ -1010,8 +1055,14 @@ app.put('/api/profiles/:id/files/:fileId', async (req, res) => {
       for (const file of allFiles) {
         let fileContent = file.currentContent || "";
         for (const variable of targetProfile.variables) {
-          const regex = new RegExp(`(<span[^>]*class="[^"]*mail-merge-tag[^"]*"[^>]*data-variable="${variable.name}"[^>]*>)([\\s\\S]*?)(<\\/span>)`, 'g');
-          fileContent = fileContent.replace(regex, `$1${variable.value || ""}$3`);
+          let varDisplayVal = variable.value || "";
+          if (typeof varDisplayVal === 'string' && varDisplayVal.includes('\n')) {
+            const lines = varDisplayVal.split('\n');
+            const rIdx = currentRowIndex - 1;
+            varDisplayVal = rIdx < lines.length ? lines[rIdx].trim() : "";
+          }
+          const regex = new RegExp(`(<span\\b[^>]*data-variable="${variable.name}"[^>]*>)([\\s\\S]*?)(<\\/span>)`, 'g');
+          fileContent = fileContent.replace(regex, `$1${varDisplayVal}$3`);
         }
         if (fileContent !== file.currentContent) {
           file.currentContent = fileContent;
@@ -1313,7 +1364,7 @@ app.put('/api/profiles/:id/connect-mailmerge', async (req, res) => {
         for (const file of files) {
           let updatedContent = file.currentContent || "";
           for (const variable of currentVariables) {
-            const regex = new RegExp(`(<span[^>]*class="[^"]*mail-merge-tag[^"]*"[^>]*data-variable="${variable.name}"[^>]*>)([\\s\\S]*?)(<\\/span>)`, 'g');
+            const regex = new RegExp(`(<span\\b[^>]*data-variable="${variable.name}"[^>]*>)([\\s\\S]*?)(<\\/span>)`, 'g');
             updatedContent = updatedContent.replace(regex, `$1${variable.value || ""}$3`);
           }
           if (updatedContent !== file.currentContent) {
@@ -1347,17 +1398,40 @@ app.put('/api/profiles/:id/connect-mailmerge', async (req, res) => {
 });
 
 // API xuất tệp tin nén ZIP (toàn bộ hoặc chỉ các tệp đã chỉnh sửa)
+// Hàm helper để phân giải giá trị của biến theo dòng (r) đối với biến nhiều dòng hoặc biến có hậu tố _r
+function getVariableValueForExport(variables, varName, r) {
+  // 1. Tìm biến có hậu tố dòng trước (Ví dụ: MA_HO_SO_1)
+  const targetVarName = `${varName}_${r}`;
+  const suffixVar = variables.find(v => v.name === targetVarName);
+  if (suffixVar) {
+    return suffixVar.value || "";
+  }
+
+  // 2. Tìm biến gốc không có hậu tố (Ví dụ: MA_HO_SO)
+  const baseVar = variables.find(v => v.name === varName);
+  if (baseVar) {
+    const val = baseVar.value || "";
+    if (typeof val === 'string' && val.includes('\n')) {
+      const lines = val.split('\n');
+      if (r - 1 < lines.length) {
+        return lines[r - 1].trim();
+      }
+      return ""; // Vượt quá số dòng
+    }
+    return val; // Chỉ có 1 giá trị tĩnh, áp dụng cho tất cả các dòng
+  }
+
+  return "";
+}
+
 // Hàm thay thế các thẻ biến Mail Merge động theo chỉ số dòng (rowNum) dành riêng cho xuất bản hàng loạt
 function replaceVariablesForExport(content, variables, rowNum) {
   if (!content) return "";
   // Quét các thẻ span mail-merge-tag
-  const spanRegex = /(<span[^>]*class="[^"]*mail-merge-tag[^"]*"[^>]*data-variable="([^"]+)"[^>]*>)([\s\S]*?)(<\/span>)/g;
+  const spanRegex = /(<span\b[^>]*data-variable="([^"]+)"[^>]*>)([\s\S]*?)(<\/span>)/g;
   
   return content.replace(spanRegex, (match, pStart, varName, pContent, pEnd) => {
-    // Ưu tiên tìm biến có hậu tố dòng trước, ví dụ: TEN_CONG_TY_1
-    const targetVarName = `${varName}_${rowNum}`;
-    const variableObj = variables.find(v => v.name === targetVarName) || variables.find(v => v.name === varName);
-    const value = variableObj ? (variableObj.value || "") : "";
+    const value = getVariableValueForExport(variables, varName, rowNum);
     return `${pStart}${value}${pEnd}`;
   });
 }
@@ -1391,19 +1465,29 @@ app.get('/api/profiles/:id/export', async (req, res) => {
     const zip = new AdmZip();
     const variables = profile.variables || [];
 
-    // 1. Kiểm tra xem có cấu trúc bảng Excel hay không (bằng cách tìm biến có hậu tố _[số])
+    // 1. Kiểm tra xem có cấu trúc bảng Excel hay không (bằng cách tìm biến có hậu tố _[số] hoặc biến nhiều dòng)
     const rowSuffixRegex = /^(.*)_(\d+)$/;
-    let maxRowIndex = 0;
+    let maxSuffixRowIndex = 0;
+    let maxMultiLineRows = 0;
     variables.forEach(v => {
+      // Đếm theo hậu tố _r
       const match = v.name.match(rowSuffixRegex);
       if (match) {
         const rowNum = parseInt(match[2]);
-        if (rowNum > maxRowIndex) {
-          maxRowIndex = rowNum;
+        if (rowNum > maxSuffixRowIndex) {
+          maxSuffixRowIndex = rowNum;
+        }
+      }
+      // Đếm theo dòng giá trị (\n)
+      if (v.value && typeof v.value === 'string' && v.value.includes('\n')) {
+        const lines = v.value.split('\n').map(l => l.trim());
+        if (lines.length > maxMultiLineRows) {
+          maxMultiLineRows = lines.length;
         }
       }
     });
 
+    const maxRowIndex = Math.max(maxSuffixRowIndex, maxMultiLineRows);
     const isTableMode = maxRowIndex > 0;
 
     if (isTableMode) {
@@ -1416,15 +1500,14 @@ app.get('/api/profiles/:id/export', async (req, res) => {
 
       for (let r = 1; r <= maxRowIndex; r++) {
         // Tìm biến định danh thư mục cho dòng r (Ưu tiên MA_HO_SO hoặc TEN_DON_VI)
-        const rowVars = variables.filter(v => v.name.endsWith(`_${r}`));
-        const maHoSoVar = rowVars.find(v => v.name.startsWith("MA_HO_SO_") || v.name.startsWith("MA_HS_"));
-        const tenDonViVar = rowVars.find(v => v.name.startsWith("TEN_DON_VI_") || v.name.startsWith("TEN_CONG_TY_"));
+        const maHoSoVal = getVariableValueForExport(variables, "MA_HO_SO", r) || getVariableValueForExport(variables, "MA_HS", r);
+        const tenDonViVal = getVariableValueForExport(variables, "TEN_DON_VI", r) || getVariableValueForExport(variables, "TEN_CONG_TY", r);
         
         let folderName = "";
-        if (maHoSoVar && maHoSoVar.value) {
-          folderName = maHoSoVar.value.trim();
-        } else if (tenDonViVar && tenDonViVar.value) {
-          folderName = tenDonViVar.value.trim();
+        if (maHoSoVal) {
+          folderName = maHoSoVal.trim();
+        } else if (tenDonViVal) {
+          folderName = tenDonViVal.trim();
         } else {
           folderName = `Dong_${r}`;
         }
@@ -1470,9 +1553,7 @@ app.get('/api/profiles/:id/export', async (req, res) => {
 
                 // 2. Thêm các biến Mail Merge động được map theo dòng r
                 uniqueVarNames.forEach(varName => {
-                  const targetVarName = `${varName}_${r}`;
-                  const variableObj = variables.find(v => v.name === targetVarName) || variables.find(v => v.name === varName);
-                  const value = variableObj ? (variableObj.value || "") : "";
+                  const value = getVariableValueForExport(variables, varName, r);
                   
                   replacementsForThisFile.push({
                     findText: `{{${varName}}}`,

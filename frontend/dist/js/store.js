@@ -303,10 +303,11 @@ window.AppStore = {
      * Cập nhật danh sách biến Mail Merge
      */
     async updateProfileVariables(profileId, variables) {
+        const rowIndex = (window.AppWorkspaceState && window.AppWorkspaceState.previewRowIndex) || 1;
         const response = await fetch(`${this.API_BASE}/profiles/${profileId}/variables`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ variables })
+            body: JSON.stringify({ variables, rowIndex })
         });
 
         if (!response.ok) {
@@ -335,10 +336,11 @@ window.AppStore = {
      * Cập nhật nội dung HTML soạn thảo của tài liệu
      */
     async updateFileContent(profileId, fileId, htmlContent) {
+        const rowIndex = (window.AppWorkspaceState && window.AppWorkspaceState.previewRowIndex) || 1;
         const response = await fetch(`${this.API_BASE}/profiles/${profileId}/files/${fileId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ htmlContent })
+            body: JSON.stringify({ htmlContent, rowIndex })
         });
 
         if (!response.ok) {

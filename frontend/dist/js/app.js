@@ -8,7 +8,8 @@ let currentSearchQuery = "";
 
 // Trạng thái đóng/mở của các phân vùng giao diện
 window.AppWorkspaceState = {
-    activeTab: 'variables' // Mặc định hiển thị tab Biến Mail Merge khi vừa mở hồ sơ
+    activeTab: 'variables', // Mặc định hiển thị tab Biến Mail Merge khi vừa mở hồ sơ
+    previewRowIndex: 1      // Dòng bản ghi xem trước mặc định
 };
 
 const initLanding = () => {
@@ -354,6 +355,25 @@ function initApp() {
                     showToast(err.message, "danger");
                 }
             }
+
+            // Xử lý thay đổi dòng dữ liệu xem trước
+            const selectRow = e.target.closest('#select-preview-row');
+            if (selectRow) {
+                if (window.AppWorkspaceState) {
+                    window.AppWorkspaceState.previewRowIndex = parseInt(selectRow.value) || 1;
+                }
+                
+                // Đồng bộ hiển thị lại văn bản xem trước theo dòng dữ liệu mới
+                const activeProfile = AppStore.getActiveProfile();
+                if (activeProfile && activeProfile.files && activeProfile.files.length > 0) {
+                    const selectPreviewFile = document.getElementById('select-preview-file');
+                    const fileId = selectPreviewFile ? selectPreviewFile.value : activeProfile.files[0].id;
+                    const fileObj = activeProfile.files.find(f => f.id === fileId);
+                    if (fileObj) {
+                        Components.updateFilePreview(fileObj, activeProfile, "");
+                    }
+                }
+            }
         });
 
         // 1. Tạo mục biến Mail Merge mới
@@ -376,13 +396,21 @@ function initApp() {
                     return;
                 }
 
-                // Thêm một trường mẫu trống để khởi tạo mục
-                const defaultFieldName = `TRUONG_MAU_1`;
-                let fieldCount = 1;
+                // Tự động sinh tên trường từ tên nhóm (viết hoa, không dấu, không ký tự đặc biệt)
+                let defaultFieldName = nameTrimmed.toUpperCase()
+                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Bỏ dấu tiếng Việt
+                    .replace(/\s+/g, '_')
+                    .replace(/[^A-Z0-9_]/g, '');
+
+                if (!defaultFieldName || defaultFieldName === "") {
+                    defaultFieldName = "TRUONG_MAU";
+                }
+
                 let finalFieldName = defaultFieldName;
+                let fieldCount = 1;
                 while (updatedVariables.some(v => v.name === finalFieldName)) {
                     fieldCount++;
-                    finalFieldName = `TRUONG_MAU_${fieldCount}`;
+                    finalFieldName = `${defaultFieldName}_${fieldCount}`;
                 }
 
                 updatedVariables.push({
@@ -677,6 +705,13 @@ function initApp() {
                 
                 const editor = document.getElementById('preview-content-edited');
                 if (editor) editor.focus();
+            }
+
+            // Tự động điều chỉnh chiều cao của textarea khi người dùng gõ phím
+            const textarea = e.target.closest('.var-val-input.field-value-input');
+            if (textarea) {
+                textarea.style.height = 'auto';
+                textarea.style.height = textarea.scrollHeight + 'px';
             }
         });
 
@@ -1495,6 +1530,20 @@ function renderActiveProfile() {
         const file = activeProfile.files.find(f => f.id === fileId) || activeProfile.files[0];
         Components.updateFilePreview(file, activeProfile, currentSearchQuery);
     }
+
+    // Tự động giãn chiều cao cho các textarea biến Mail Merge
+    adjustTextareaHeights();
+}
+
+/**
+ * Tự động điều chỉnh chiều cao của tất cả textarea nhập giá trị biến Mail Merge
+ */
+function adjustTextareaHeights() {
+    const textareas = document.querySelectorAll('.var-val-input.field-value-input');
+    textareas.forEach(textarea => {
+        textarea.style.height = 'auto';
+        textarea.style.height = textarea.scrollHeight + 'px';
+    });
 }
 
 /**
