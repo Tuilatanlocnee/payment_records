@@ -1295,6 +1295,14 @@ form {
     background-color: #f8fafc;
 }
 
+/* Bảng không viền từ file Word gốc */
+.docx-table-borderless,
+.docx-table-borderless td,
+.docx-table-borderless th {
+    border: none !important;
+    background-color: transparent !important;
+}
+
 /* Nút quay lại trên Mobile mặc định ẩn trên Desktop */
 .btn-mobile-back {
     display: none !important;

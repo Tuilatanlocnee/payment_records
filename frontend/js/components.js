@@ -1122,7 +1122,7 @@ window.Components = {
             }
 
             // 6. Định dạng chữ ký của người ký đơn lẻ ở cuối văn bản (Căn phải và căn giữa theo khối)
-            const isSignatureTitle = /^(GIÁM ĐỐC|PHÓ GIÁM ĐỐC|THỦ TRƯỞNG|ĐẠI DIỆN|KẾ TOÁN TRƯỞNG|NGƯỜI LẬP BIỂU|NGƯỜI LẬP|NGƯỜI ĐỀ NGHỊ|KT\b)/i.test(trimmedLine);
+            const isSignatureTitle = /^(GIÁM ĐỐC|PHÓ GIÁM ĐỐC|THỦ TRƯỞNG|ĐẠI DIỆN|KẾ TOÁN TRƯỞNG|NGƯỜI LẬP BIỂU|NGƯỜI LẬP|NGƯỜI ĐỀ NGHỊ|KT\b)/i.test(trimmedLine) && !trimmedLine.includes(':');
             if (isSignatureTitle && trimmedLine.length < 150) {
                 inRightSignature = true;
                 return `<div style="text-align: center; margin-left: auto; margin-right: 20px; width: 320px; font-weight: bold; margin-top: 20px; font-size: 1.05em;">${trimmedLine}</div>`;

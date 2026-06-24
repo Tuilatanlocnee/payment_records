@@ -385,7 +385,11 @@ function parseTable(tableXml, relsMap, zip) {
     }
     rowsHtml.push(`<tr>${cellsHtml.join('')}</tr>`);
   }
-  return `<table class="docx-table"><tbody>${rowsHtml.join('')}</tbody></table>`;
+  // Kiểm tra thuộc tính đường viền bảng từ XML để phân loại bảng có viền/không viền
+  const hasBorders = tableXml.includes('<w:tblBorders') && !tableXml.includes('w:val="none"');
+  const tableClass = hasBorders ? 'docx-table' : 'docx-table docx-table-borderless';
+  
+  return `<table class="${tableClass}"><tbody>${rowsHtml.join('')}</tbody></table>`;
 }
 
 // Phân tích file .docx để trích xuất văn bản thô sạch sẽ, bảo toàn cấu trúc bảng và ảnh
