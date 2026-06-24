@@ -4,7 +4,7 @@
   "description": "Frontend client for MobiFone payment records system",
   "scripts": {
     "dev": "vite --port 5173 --host",
-    "build": "powershell -Command \"New-Item -ItemType Directory -Force -Path dist; Copy-Item -Recurse -Force css, js, index.html, MobiFone_logo.svg.png dist/\""
+    "build": "node build.js"
   },
   "devDependencies": {
     "vite": "^5.2.0"
