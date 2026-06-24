@@ -4,13 +4,15 @@ const fs = require('fs');
 const path = require('path');
 const AdmZip = require('adm-zip');
 const mongoose = require('mongoose');
+const HTMLtoDOCX = require('html-to-docx');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
-app.use(express.json({ limit: '50mb' })); // Tăng giới hạn tải trọng để upload file base64 lớn
+app.use(express.json({ limit: '150mb' })); // Tăng giới hạn tải trọng để upload file base64 lớn và ảnh minh chứng
+app.use(express.urlencoded({ limit: '150mb', extended: true }));
 
 // Kết nối MongoDB
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/payment_records';
@@ -23,6 +25,14 @@ const profileSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
   createdAt: { type: Date, default: Date.now },
   status: { type: String, enum: ['new', 'completed', 'scanning'], default: 'new' },
+  type: { type: String, enum: ['original', 'edited', 'mailmerge'], default: 'edited' },
+  originalProfileId: { type: mongoose.Schema.Types.ObjectId, ref: 'Profile', default: null },
+  mailMergeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Profile', default: null },
+  variables: [{
+    name: String,
+    value: String,
+    group: { type: String, default: 'Chung' }
+  }],
   replacements: [{
     findText: String,
     replaceText: String
@@ -38,6 +48,14 @@ const fileSchema = new mongoose.Schema({
   originalBase64: { type: String, default: null }
 });
 
+const imageSchema = new mongoose.Schema({
+  profileId: { type: mongoose.Schema.Types.ObjectId, ref: 'Profile', required: true },
+  name: { type: String, required: true, trim: true },
+  size: { type: Number, default: 0 },
+  data: { type: String, required: true }, // Chuỗi base64 hình ảnh
+  createdAt: { type: Date, default: Date.now }
+});
+
 const settingSchema = new mongoose.Schema({
   key: { type: String, required: true, unique: true },
   value: mongoose.Schema.Types.Mixed
@@ -45,6 +63,7 @@ const settingSchema = new mongoose.Schema({
 
 const Profile = mongoose.model('Profile', profileSchema);
 const File = mongoose.model('File', fileSchema);
+const Image = mongoose.model('Image', imageSchema);
 const Setting = mongoose.model('Setting', settingSchema);
 
 
@@ -449,7 +468,7 @@ app.get('/api/profiles', async (req, res) => {
     const dbProfiles = await Profile.find().sort({ createdAt: -1 }).lean();
     const dbSetting = await Setting.findOne({ key: 'activeProfileId' }).lean();
     
-    // Ghép files tương ứng vào từng profile
+    // Ghép files và images tương ứng vào từng profile
     const profilesWithFiles = await Promise.all(dbProfiles.map(async (p) => {
       const files = await File.find({ profileId: p._id }).lean();
       const formattedFiles = files.map(f => ({
@@ -460,13 +479,42 @@ app.get('/api/profiles', async (req, res) => {
         currentContent: f.currentContent,
         originalBase64: f.originalBase64
       }));
+
+      const images = await Image.find({ profileId: p._id }).lean();
+      const formattedImages = images.map(img => ({
+        id: img._id.toString(),
+        name: img.name,
+        size: img.size,
+        data: img.data,
+        createdAt: img.createdAt
+      }));
+
+      // Nạp live variables từ Tệp Mail Merge kết nối nếu có
+      let variables = p.variables || [];
+      if (p.type === 'edited' && p.mailMergeId) {
+        const mmProfile = dbProfiles.find(x => x._id.toString() === p.mailMergeId.toString());
+        if (mmProfile) {
+          variables = mmProfile.variables || [];
+        } else {
+          const mmDbProfile = await Profile.findById(p.mailMergeId).lean();
+          if (mmDbProfile) {
+            variables = mmDbProfile.variables || [];
+          }
+        }
+      }
+
       return {
         id: p._id.toString(),
         name: p.name,
         createdAt: p.createdAt,
         status: p.status,
+        type: p.type || 'edited',
+        originalProfileId: p.originalProfileId ? p.originalProfileId.toString() : null,
+        mailMergeId: p.mailMergeId ? p.mailMergeId.toString() : null,
+        variables: variables,
         replacements: p.replacements,
-        files: formattedFiles
+        files: formattedFiles,
+        images: formattedImages
       };
     }));
 
@@ -498,19 +546,52 @@ app.post('/api/profiles/active', async (req, res) => {
 
 // Tạo hồ sơ mới
 app.post('/api/profiles', async (req, res) => {
-  const { name } = req.body;
+  const { name, type, originalProfileId } = req.body;
   if (!name || name.trim() === "") {
     return res.status(400).json({ error: "Tên hồ sơ không được để trống." });
   }
 
   try {
+    let variables = [];
+    if (type === 'edited' && originalProfileId) {
+      const srcProfile = await Profile.findById(originalProfileId);
+      if (srcProfile) {
+        variables = (srcProfile.variables || []).map(v => ({
+          name: v.name,
+          value: v.value,
+          group: v.group || 'Chung'
+        }));
+      }
+    }
+
     const newProfile = new Profile({
       name: name.trim(),
       status: "new",
+      type: type || 'edited',
+      originalProfileId: originalProfileId || null,
+      variables: variables,
       replacements: []
     });
     const savedProfile = await newProfile.save();
     
+    // Nếu là hồ sơ chỉnh sửa từ hồ sơ gốc, tiến hành sao chép các tệp tài liệu
+    let clonedFilesCount = 0;
+    if (type === 'edited' && originalProfileId) {
+      const sourceFiles = await File.find({ profileId: originalProfileId });
+      if (sourceFiles.length > 0) {
+        const clonedFiles = sourceFiles.map(f => new File({
+          profileId: savedProfile._id,
+          name: f.name,
+          size: f.size,
+          originalContent: f.originalContent,
+          currentContent: f.currentContent,
+          originalBase64: f.originalBase64
+        }));
+        await File.insertMany(clonedFiles);
+        clonedFilesCount = clonedFiles.length;
+      }
+    }
+
     // Đặt hồ sơ vừa tạo làm active
     await Setting.findOneAndUpdate(
       { key: 'activeProfileId' },
@@ -518,13 +599,27 @@ app.post('/api/profiles', async (req, res) => {
       { upsert: true, returnDocument: 'after' }
     );
 
+    const files = await File.find({ profileId: savedProfile._id }).lean();
+    const formattedFiles = files.map(f => ({
+      id: f._id.toString(),
+      name: f.name,
+      size: f.size,
+      originalContent: f.originalContent,
+      currentContent: f.currentContent,
+      originalBase64: f.originalBase64
+    }));
+
     res.status(201).json({
       id: savedProfile._id.toString(),
       name: savedProfile.name,
       createdAt: savedProfile.createdAt,
       status: savedProfile.status,
+      type: savedProfile.type,
+      originalProfileId: savedProfile.originalProfileId ? savedProfile.originalProfileId.toString() : null,
+      variables: savedProfile.variables || [],
       replacements: savedProfile.replacements,
-      files: []
+      files: formattedFiles,
+      images: []
     });
   } catch (err) {
     console.error(err);
@@ -538,6 +633,7 @@ app.delete('/api/profiles/:id', async (req, res) => {
   try {
     await Profile.findByIdAndDelete(id);
     await File.deleteMany({ profileId: id });
+    await Image.deleteMany({ profileId: id }); // Xóa sạch các ảnh minh chứng thuộc hồ sơ
     
     // Nếu hồ sơ bị xóa đang active, reset activeProfileId
     const dbSetting = await Setting.findOne({ key: 'activeProfileId' });
@@ -637,6 +733,82 @@ app.post('/api/profiles/:id/files', async (req, res) => {
   }
 });
 
+// Sao chép toàn bộ tài liệu từ một hồ sơ gốc sang hồ sơ hiện tại
+app.post('/api/profiles/:id/copy-from/:sourceId', async (req, res) => {
+  const { id, sourceId } = req.params;
+  try {
+    const targetProfile = await Profile.findById(id);
+    if (!targetProfile) {
+      return res.status(404).json({ error: "Không tìm thấy hồ sơ đích." });
+    }
+
+    const sourceProfile = await Profile.findById(sourceId);
+    if (!sourceProfile) {
+      return res.status(404).json({ error: "Không tìm thấy hồ sơ gốc nguồn." });
+    }
+
+    // Lấy các file của hồ sơ nguồn
+    const sourceFiles = await File.find({ profileId: sourceId });
+    if (sourceFiles.length === 0) {
+      return res.status(400).json({ error: "Hồ sơ gốc nguồn không có tài liệu nào." });
+    }
+
+    // Xoá các file hiện tại nếu có (để ghi đè/sao chép sạch sẽ)
+    await File.deleteMany({ profileId: id });
+
+    // Sao chép file sang hồ sơ đích
+    const clonedFiles = sourceFiles.map(f => new File({
+      profileId: targetProfile._id,
+      name: f.name,
+      size: f.size,
+      originalContent: f.originalContent,
+      currentContent: f.currentContent,
+      originalBase64: f.originalBase64
+    }));
+    await File.insertMany(clonedFiles);
+
+    // Nếu hồ sơ nguồn có biến, sao chép các biến sang nếu hồ sơ đích chưa có biến nào
+    if ((targetProfile.variables || []).length === 0 && (sourceProfile.variables || []).length > 0) {
+      targetProfile.variables = sourceProfile.variables.map(v => ({
+        name: v.name,
+        value: v.value,
+        group: v.group || 'Chung'
+      }));
+    }
+
+    // Đặt link originalProfileId để liên kết nếu cần
+    targetProfile.originalProfileId = sourceId;
+    targetProfile.status = "new";
+    await targetProfile.save();
+
+    // Lấy lại danh sách file đã sao chép của hồ sơ hiện tại
+    const files = await File.find({ profileId: id }).lean();
+    const formattedFiles = files.map(f => ({
+      id: f._id.toString(),
+      name: f.name,
+      size: f.size,
+      originalContent: f.originalContent,
+      currentContent: f.currentContent,
+      originalBase64: f.originalBase64
+    }));
+
+    res.json({
+      success: true,
+      profile: {
+        id: targetProfile._id.toString(),
+        name: targetProfile.name,
+        type: targetProfile.type,
+        originalProfileId: targetProfile.originalProfileId ? targetProfile.originalProfileId.toString() : null,
+        variables: targetProfile.variables || [],
+        files: formattedFiles
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Lỗi khi sao chép tài liệu từ hồ sơ gốc." });
+  }
+});
+
 
 // Xóa file khỏi hồ sơ
 app.delete('/api/profiles/:id/files/:fileId', async (req, res) => {
@@ -670,6 +842,250 @@ app.delete('/api/profiles/:id/files/:fileId', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Lỗi khi xóa tài liệu." });
+  }
+});
+
+// Cập nhật danh sách biến Mail Merge
+app.put('/api/profiles/:id/variables', async (req, res) => {
+  const { id } = req.params;
+  const { variables } = req.body; // [{ name, value, group }]
+
+  try {
+    const profile = await Profile.findById(id);
+    if (!profile) {
+      return res.status(404).json({ error: "Không tìm thấy hồ sơ thanh toán." });
+    }
+
+    let targetProfile = profile;
+    let targetProfileId = id;
+
+    if (profile.type === 'edited' && profile.mailMergeId) {
+      targetProfileId = profile.mailMergeId.toString();
+      targetProfile = await Profile.findById(targetProfileId);
+      if (!targetProfile) {
+        return res.status(404).json({ error: "Không tìm thấy Tệp Mail Merge gốc kết nối." });
+      }
+    }
+
+    targetProfile.variables = variables || [];
+    await targetProfile.save();
+
+    // Tìm tất cả các hồ sơ có kết nối tới Tệp Mail Merge gốc này
+    const connectedProfiles = await Profile.find({
+      $or: [
+        { _id: targetProfileId },
+        { mailMergeId: targetProfileId }
+      ]
+    });
+    const connectedProfileIds = connectedProfiles.map(cp => cp._id);
+
+    // Đồng bộ lại tất cả file của toàn bộ các hồ sơ này
+    const files = await File.find({ profileId: { $in: connectedProfileIds } });
+    for (const file of files) {
+      let updatedContent = file.currentContent || "";
+      for (const variable of targetProfile.variables) {
+        const regex = new RegExp(`(<span[^>]*class="[^"]*mail-merge-tag[^"]*"[^>]*data-variable="${variable.name}"[^>]*>)([\\s\\S]*?)(<\\/span>)`, 'g');
+        updatedContent = updatedContent.replace(regex, `$1${variable.value || ""}$3`);
+      }
+      if (updatedContent !== file.currentContent) {
+        file.currentContent = updatedContent;
+        await file.save();
+      }
+    }
+
+    // Lấy lại danh sách file của hồ sơ hiện tại
+    const updatedFiles = await File.find({ profileId: id }).lean();
+    const formattedFiles = updatedFiles.map(f => ({
+      id: f._id.toString(),
+      name: f.name,
+      size: f.size,
+      originalContent: f.originalContent,
+      currentContent: f.currentContent,
+      originalBase64: f.originalBase64
+    }));
+
+    res.json({
+      success: true,
+      variables: targetProfile.variables,
+      files: formattedFiles
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Lỗi khi cập nhật danh sách biến." });
+  }
+});
+
+// Cập nhật nội dung tài liệu (từ trình soạn thảo Rich Text)
+app.put('/api/profiles/:id/files/:fileId', async (req, res) => {
+  const { id, fileId } = req.params;
+  const { htmlContent } = req.body;
+
+  try {
+    const profile = await Profile.findById(id);
+    if (!profile) {
+      return res.status(404).json({ error: "Không tìm thấy hồ sơ thanh toán." });
+    }
+
+    const currentFile = await File.findById(fileId);
+    if (!currentFile) {
+      return res.status(404).json({ error: "Không tìm thấy tệp tài liệu." });
+    }
+
+    // 1. Lưu nội dung của tệp hiện tại trước
+    currentFile.currentContent = htmlContent || "";
+    await currentFile.save();
+
+    let targetProfile = profile;
+    let targetProfileId = id;
+
+    if (profile.type === 'edited' && profile.mailMergeId) {
+      targetProfileId = profile.mailMergeId.toString();
+      targetProfile = await Profile.findById(targetProfileId);
+      if (!targetProfile) {
+        return res.status(404).json({ error: "Không tìm thấy Tệp Mail Merge gốc kết nối." });
+      }
+    }
+
+    // 2. Phân tích các thẻ mail-merge-tag trong HTML để đồng bộ ngược về targetProfile.variables
+    const tagRegex = /<span[^>]*class="[^"]*mail-merge-tag[^"]*"[^>]*data-variable="([^"]+)"[^>]*>([\s\S]*?)<\/span>/g;
+    let match;
+    let variablesChanged = false;
+    const updatedVariables = (targetProfile.variables || []).map(v => ({
+      name: v.name,
+      value: v.value,
+      group: v.group || 'Chung'
+    }));
+
+    while ((match = tagRegex.exec(htmlContent)) !== null) {
+      const varName = match[1];
+      const varValue = match[2].replace(/<[^>]*>/g, '').trim(); // Bỏ các thẻ lồng nhau nếu có
+
+      const varIndex = updatedVariables.findIndex(v => v.name === varName);
+      if (varIndex !== -1) {
+        if (updatedVariables[varIndex].value !== varValue) {
+          updatedVariables[varIndex].value = varValue;
+          variablesChanged = true;
+        }
+      } else {
+        updatedVariables.push({ name: varName, value: varValue, group: 'Chung' });
+        variablesChanged = true;
+      }
+    }
+
+    // 3. Nếu có biến nào thay đổi giá trị, lưu lại targetProfile và đồng bộ giá trị đó sang tất cả các file khác của các hồ sơ kết nối
+    if (variablesChanged) {
+      targetProfile.variables = updatedVariables;
+      await targetProfile.save();
+
+      // Tìm tất cả các hồ sơ có kết nối tới Tệp Mail Merge gốc này
+      const connectedProfiles = await Profile.find({
+        $or: [
+          { _id: targetProfileId },
+          { mailMergeId: targetProfileId }
+        ]
+      });
+      const connectedProfileIds = connectedProfiles.map(cp => cp._id);
+
+      const allFiles = await File.find({ profileId: { $in: connectedProfileIds } });
+      for (const file of allFiles) {
+        let fileContent = file.currentContent || "";
+        for (const variable of targetProfile.variables) {
+          const regex = new RegExp(`(<span[^>]*class="[^"]*mail-merge-tag[^"]*"[^>]*data-variable="${variable.name}"[^>]*>)([\\s\\S]*?)(<\\/span>)`, 'g');
+          fileContent = fileContent.replace(regex, `$1${variable.value || ""}$3`);
+        }
+        if (fileContent !== file.currentContent) {
+          file.currentContent = fileContent;
+          await file.save();
+        }
+      }
+    }
+
+    const updatedFiles = await File.find({ profileId: id }).lean();
+    const formattedFiles = updatedFiles.map(f => ({
+      id: f._id.toString(),
+      name: f.name,
+      size: f.size,
+      originalContent: f.originalContent,
+      currentContent: f.currentContent,
+      originalBase64: f.originalBase64
+    }));
+
+    res.json({
+      success: true,
+      variables: targetProfile.variables,
+      files: formattedFiles
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Lỗi khi lưu chỉnh sửa tài liệu." });
+  }
+});
+
+// Tải lên ảnh minh chứng
+app.post('/api/profiles/:id/images', async (req, res) => {
+  const { id } = req.params;
+  const { name, size, data } = req.body;
+
+  if (!data) {
+    return res.status(400).json({ error: "Dữ liệu hình ảnh không được trống." });
+  }
+
+  try {
+    const profile = await Profile.findById(id);
+    if (!profile) {
+      return res.status(404).json({ error: "Không tìm thấy hồ sơ thanh toán." });
+    }
+
+    const newImage = new Image({
+      profileId: id,
+      name: name || 'Ảnh minh chứng',
+      size: size || 0,
+      data: data
+    });
+
+    const savedImage = await newImage.save();
+
+    res.status(201).json({
+      id: savedImage._id.toString(),
+      name: savedImage.name,
+      size: savedImage.size,
+      data: savedImage.data,
+      createdAt: savedImage.createdAt
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Lỗi khi lưu ảnh minh chứng." });
+  }
+});
+
+// Lấy danh sách ảnh minh chứng của một hồ sơ
+app.get('/api/profiles/:id/images', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const images = await Image.find({ profileId: id }).sort({ createdAt: -1 }).lean();
+    const formattedImages = images.map(img => ({
+      id: img._id.toString(),
+      name: img.name,
+      size: img.size,
+      data: img.data,
+      createdAt: img.createdAt
+    }));
+    res.json(formattedImages);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Lỗi khi tải danh sách ảnh minh chứng." });
+  }
+});
+
+// Xóa ảnh minh chứng
+app.delete('/api/profiles/:id/images/:imageId', async (req, res) => {
+  const { imageId } = req.params;
+  try {
+    await Image.findByIdAndDelete(imageId);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Lỗi khi xóa ảnh minh chứng." });
   }
 });
 
@@ -853,10 +1269,83 @@ app.post('/api/profiles/:id/undo-replace', async (req, res) => {
   }
 });
 
+// API kết nối/ngắt kết nối Hồ sơ thanh toán tới Tệp Mail Merge gốc live
+app.put('/api/profiles/:id/connect-mailmerge', async (req, res) => {
+  const { id } = req.params;
+  const { mailMergeId } = req.body; // ID của Tệp Mail Merge gốc, hoặc null/trống nếu ngắt kết nối
+
+  try {
+    const profile = await Profile.findById(id);
+    if (!profile) {
+      return res.status(404).json({ error: "Không tìm thấy hồ sơ thanh toán." });
+    }
+
+    profile.mailMergeId = mailMergeId ? new mongoose.Types.ObjectId(mailMergeId) : null;
+    await profile.save();
+
+    // Khi kết nối mới, tiến hành đồng bộ ngay lập tức các biến của Tệp Mail Merge gốc sang toàn bộ tài liệu của hồ sơ này
+    let currentVariables = [];
+    if (mailMergeId) {
+      const mmProfile = await Profile.findById(mailMergeId);
+      if (mmProfile) {
+        currentVariables = mmProfile.variables || [];
+        const files = await File.find({ profileId: id });
+        for (const file of files) {
+          let updatedContent = file.currentContent || "";
+          for (const variable of currentVariables) {
+            const regex = new RegExp(`(<span[^>]*class="[^"]*mail-merge-tag[^"]*"[^>]*data-variable="${variable.name}"[^>]*>)([\\s\\S]*?)(<\\/span>)`, 'g');
+            updatedContent = updatedContent.replace(regex, `$1${variable.value || ""}$3`);
+          }
+          if (updatedContent !== file.currentContent) {
+            file.currentContent = updatedContent;
+            await file.save();
+          }
+        }
+      }
+    }
+
+    const updatedFiles = await File.find({ profileId: id }).lean();
+    const formattedFiles = updatedFiles.map(f => ({
+      id: f._id.toString(),
+      name: f.name,
+      size: f.size,
+      originalContent: f.originalContent,
+      currentContent: f.currentContent,
+      originalBase64: f.originalBase64
+    }));
+
+    res.json({
+      success: true,
+      mailMergeId: profile.mailMergeId ? profile.mailMergeId.toString() : null,
+      variables: currentVariables,
+      files: formattedFiles
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Lỗi khi kết nối Tệp Mail Merge." });
+  }
+});
+
+// API xuất tệp tin nén ZIP (toàn bộ hoặc chỉ các tệp đã chỉnh sửa)
+// Hàm thay thế các thẻ biến Mail Merge động theo chỉ số dòng (rowNum) dành riêng cho xuất bản hàng loạt
+function replaceVariablesForExport(content, variables, rowNum) {
+  if (!content) return "";
+  // Quét các thẻ span mail-merge-tag
+  const spanRegex = /(<span[^>]*class="[^"]*mail-merge-tag[^"]*"[^>]*data-variable="([^"]+)"[^>]*>)([\s\S]*?)(<\/span>)/g;
+  
+  return content.replace(spanRegex, (match, pStart, varName, pContent, pEnd) => {
+    // Ưu tiên tìm biến có hậu tố dòng trước, ví dụ: TEN_CONG_TY_1
+    const targetVarName = `${varName}_${rowNum}`;
+    const variableObj = variables.find(v => v.name === targetVarName) || variables.find(v => v.name === varName);
+    const value = variableObj ? (variableObj.value || "") : "";
+    return `${pStart}${value}${pEnd}`;
+  });
+}
+
 // API xuất tệp tin nén ZIP (toàn bộ hoặc chỉ các tệp đã chỉnh sửa)
 app.get('/api/profiles/:id/export', async (req, res) => {
   const { id } = req.params;
-  const { mode } = req.query; // 'all' hoặc 'edited'
+  const { mode } = req.query; // 'all', 'edited' hoặc 'custom'
 
   try {
     const profile = await Profile.findById(id);
@@ -880,49 +1369,188 @@ app.get('/api/profiles/:id/export', async (req, res) => {
     }
 
     const zip = new AdmZip();
-    for (const file of filesToExport) {
-      const dotIndex = file.name.lastIndexOf('.');
-      const baseName = dotIndex !== -1 ? file.name.substring(0, dotIndex) : file.name;
-      const ext = dotIndex !== -1 ? file.name.substring(dotIndex) : '.txt';
-      
-      const extLower = ext.toLowerCase();
-      let exportExt = ext;
-      if (extLower === '.doc' || extLower === '.docx') {
-        exportExt = '.docx'; // Chuyển đổi toàn bộ tệp Word cũ (.doc) sang định dạng Word mới (.docx) khi xuất bản để tiện sử dụng
-      }
-      const exportName = `${baseName}_hoanthien${exportExt}`;
-      
-      const isDocx = extLower === '.docx';
-      const isDoc = extLower === '.doc';
-      
-      if (isDocx && file.originalBase64) {
-        // Có dữ liệu Word gốc (.docx), thực hiện thay thế XML trực tiếp
-        try {
-          const zipBuffer = Buffer.from(file.originalBase64, 'base64');
-          const docxZip = new AdmZip(zipBuffer);
-          let documentXml = docxZip.readAsText('word/document.xml');
-          if (documentXml) {
-            documentXml = replaceTextInDocxXml(documentXml, profile.replacements || []);
-            docxZip.updateFile('word/document.xml', Buffer.from(documentXml, 'utf-8'));
-            zip.addFile(exportName, docxZip.toBuffer());
-          } else {
-            // Fallback tạo file docx tối giản nếu không đọc được xml
-            zip.addFile(exportName, createMinimalDocx(file.currentContent));
-          }
-        } catch (err) {
-          console.error(`Lỗi khi xử lý đồng bộ tệp tin Word ${file.name}:`, err);
-          zip.addFile(exportName, createMinimalDocx(file.currentContent));
+    const variables = profile.variables || [];
+
+    // 1. Kiểm tra xem có cấu trúc bảng Excel hay không (bằng cách tìm biến có hậu tố _[số])
+    const rowSuffixRegex = /^(.*)_(\d+)$/;
+    let maxRowIndex = 0;
+    variables.forEach(v => {
+      const match = v.name.match(rowSuffixRegex);
+      if (match) {
+        const rowNum = parseInt(match[2]);
+        if (rowNum > maxRowIndex) {
+          maxRowIndex = rowNum;
         }
-      } else if (isDoc && file.originalBase64) {
-        // Tệp Word cũ (.doc) có dữ liệu gốc
-        // Vì chạy trên môi trường Linux không hỗ trợ Word COM, hệ thống tự động sinh tệp .docx tối giản từ văn bản đã thay thế
-        zip.addFile(exportName, createMinimalDocx(file.currentContent));
-      } else if (extLower === '.docx' || extLower === '.doc') {
-        // Tệp Word cũ (.doc) hoặc tệp giả lập thiếu Base64, sinh tệp Word (.docx) tối giản hợp lệ từ text thuần để đảm bảo mở được bình thường
-        zip.addFile(exportName, createMinimalDocx(file.currentContent));
-      } else {
-        // Tệp văn bản thuần (.txt) hoặc các tệp tin khác
-        zip.addFile(exportName, Buffer.from(file.currentContent, 'utf-8'));
+      }
+    });
+
+    const isTableMode = maxRowIndex > 0;
+
+    if (isTableMode) {
+      // A. CHẾ ĐỘ XUẤT BẢN HÀNG LOẠT (BATCH GENERATION): Nhân bản tài liệu theo dòng Excel
+      for (let r = 1; r <= maxRowIndex; r++) {
+        // Tìm biến định danh thư mục cho dòng r (Ưu tiên MA_HO_SO hoặc TEN_DON_VI)
+        const rowVars = variables.filter(v => v.name.endsWith(`_${r}`));
+        const maHoSoVar = rowVars.find(v => v.name.startsWith("MA_HO_SO_") || v.name.startsWith("MA_HS_"));
+        const tenDonViVar = rowVars.find(v => v.name.startsWith("TEN_DON_VI_") || v.name.startsWith("TEN_CONG_TY_"));
+        
+        let folderName = "";
+        if (maHoSoVar && maHoSoVar.value) {
+          folderName = maHoSoVar.value.trim();
+        } else if (tenDonViVar && tenDonViVar.value) {
+          folderName = tenDonViVar.value.trim();
+        } else {
+          folderName = `Dong_${r}`;
+        }
+        
+        // Làm sạch tên thư mục khỏi các ký tự đặc biệt không hợp lệ trên Windows/Linux
+        folderName = folderName.replace(/[\/\\?%*:|"<>]/g, '-');
+
+        for (const file of filesToExport) {
+          const dotIndex = file.name.lastIndexOf('.');
+          const baseName = dotIndex !== -1 ? file.name.substring(0, dotIndex) : file.name;
+          const ext = dotIndex !== -1 ? file.name.substring(dotIndex) : '.txt';
+          
+          const extLower = ext.toLowerCase();
+          let exportExt = ext;
+          if (extLower === '.doc' || extLower === '.docx') {
+            exportExt = '.docx';
+          }
+          const exportName = `${baseName}_hoanthien${exportExt}`;
+          const zipFilePath = `${folderName}/${exportName}`;
+
+          // Thực hiện thay thế biến tương ứng dòng r trước khi chuyển đổi
+          const replacedHtml = replaceVariablesForExport(file.currentContent || "", variables, r);
+
+          if (extLower === '.docx' || extLower === '.doc') {
+            try {
+              const cleanHtml = replacedHtml
+                .replace(/\[IMAGE:data:([^;]+);base64,([^\]]+)\]/g, (match, mime, base64) => {
+                  let width = "100%";
+                  let height = "auto";
+                  const pipeIdx = base64.indexOf('|');
+                  let imgBase64 = base64;
+                  if (pipeIdx !== -1) {
+                    imgBase64 = base64.substring(0, pipeIdx);
+                    const styles = base64.substring(pipeIdx + 1);
+                    const wMatch = styles.match(/width:\s*([^;]+)/);
+                    const hMatch = styles.match(/height:\s*([^;]+)/);
+                    if (wMatch) width = wMatch[1];
+                    if (hMatch) height = hMatch[1];
+                  }
+                  return `<img src="data:${mime};base64,${imgBase64}" style="width: ${width}; height: ${height}; display: block; margin: 10px auto;" />`;
+                });
+
+              const htmlString = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: 'Arial', sans-serif; font-size: 14px; line-height: 1.5; color: #000000; }
+    p { margin: 0 0 8px 0; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 12px; }
+    table, th, td { border: 1px solid #000000; }
+    td, th { padding: 6px 8px; vertical-align: top; }
+    .mail-merge-tag { color: #000000; background-color: transparent; font-weight: normal; text-decoration: none; }
+  </style>
+</head>
+<body>
+  ${cleanHtml}
+</body>
+</html>`;
+
+              const docxBuffer = await HTMLtoDOCX(htmlString, null, {
+                orientation: 'portrait',
+                margins: { top: 1440, right: 1440, bottom: 1440, left: 1440 }
+              });
+              zip.addFile(zipFilePath, docxBuffer);
+            } catch (err) {
+              console.error(`Lỗi khi chuyển đổi HTML sang DOCX cho file ${file.name} dòng ${r}:`, err);
+              const textOnly = replacedHtml.replace(/<[^>]*>/g, '');
+              zip.addFile(zipFilePath, createMinimalDocx(textOnly));
+            }
+          } else {
+            const textOnly = replacedHtml
+              .replace(/<br\s*\/?>/gi, '\n')
+              .replace(/<\/div>/gi, '\n')
+              .replace(/<\/p>/gi, '\n')
+              .replace(/<[^>]*>/g, '');
+            zip.addFile(zipFilePath, Buffer.from(textOnly, 'utf-8'));
+          }
+        }
+      }
+    } else {
+      // B. CHẾ ĐỘ XUẤT BẢN ĐƠN LẺ THÔNG THƯỜNG (SINGLE DOCUMENT)
+      for (const file of filesToExport) {
+        const dotIndex = file.name.lastIndexOf('.');
+        const baseName = dotIndex !== -1 ? file.name.substring(0, dotIndex) : file.name;
+        const ext = dotIndex !== -1 ? file.name.substring(dotIndex) : '.txt';
+        
+        const extLower = ext.toLowerCase();
+        let exportExt = ext;
+        if (extLower === '.doc' || extLower === '.docx') {
+          exportExt = '.docx';
+        }
+        const exportName = `${baseName}_hoanthien${exportExt}`;
+        
+        const isDocx = extLower === '.docx';
+        const isDoc = extLower === '.doc';
+        
+        if (isDocx || isDoc) {
+          try {
+            const cleanHtml = (file.currentContent || "")
+              .replace(/\[IMAGE:data:([^;]+);base64,([^\]]+)\]/g, (match, mime, base64) => {
+                let width = "100%";
+                let height = "auto";
+                const pipeIdx = base64.indexOf('|');
+                let imgBase64 = base64;
+                if (pipeIdx !== -1) {
+                  imgBase64 = base64.substring(0, pipeIdx);
+                  const styles = base64.substring(pipeIdx + 1);
+                  const wMatch = styles.match(/width:\s*([^;]+)/);
+                  const hMatch = styles.match(/height:\s*([^;]+)/);
+                  if (wMatch) width = wMatch[1];
+                  if (hMatch) height = hMatch[1];
+                }
+                return `<img src="data:${mime};base64,${imgBase64}" style="width: ${width}; height: ${height}; display: block; margin: 10px auto;" />`;
+              });
+
+            const htmlString = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: 'Arial', sans-serif; font-size: 14px; line-height: 1.5; color: #000000; }
+    p { margin: 0 0 8px 0; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 12px; }
+    table, th, td { border: 1px solid #000000; }
+    td, th { padding: 6px 8px; vertical-align: top; }
+    .mail-merge-tag { color: #000000; background-color: transparent; font-weight: normal; text-decoration: none; }
+  </style>
+</head>
+<body>
+  ${cleanHtml}
+</body>
+</html>`;
+
+            const docxBuffer = await HTMLtoDOCX(htmlString, null, {
+              orientation: 'portrait',
+              margins: { top: 1440, right: 1440, bottom: 1440, left: 1440 }
+            });
+            zip.addFile(exportName, docxBuffer);
+          } catch (err) {
+            console.error(`Lỗi khi chuyển đổi HTML sang DOCX cho file ${file.name}:`, err);
+            const textOnly = (file.currentContent || "").replace(/<[^>]*>/g, '');
+            zip.addFile(exportName, createMinimalDocx(textOnly));
+          }
+        } else {
+          const textOnly = (file.currentContent || "")
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<\/div>/gi, '\n')
+            .replace(/<\/p>/gi, '\n')
+            .replace(/<[^>]*>/g, '');
+          zip.addFile(exportName, Buffer.from(textOnly, 'utf-8'));
+        }
       }
     }
 

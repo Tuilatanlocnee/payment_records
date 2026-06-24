@@ -84,7 +84,7 @@ window.AppStore = {
     /**
      * Tạo hồ sơ thanh toán mới
      */
-    async createProfile(name) {
+    async createProfile(name, type = 'edited', originalProfileId = null) {
         if (!name || name.trim() === "") {
             throw new Error("Tên hồ sơ không được để trống.");
         }
@@ -92,7 +92,7 @@ window.AppStore = {
         const response = await fetch(`${this.API_BASE}/profiles`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: name.trim() })
+            body: JSON.stringify({ name: name.trim(), type, originalProfileId })
         });
 
         if (!response.ok) {
@@ -164,6 +164,38 @@ window.AppStore = {
         });
 
         return newFile;
+    },
+
+    /**
+     * Sao chép toàn bộ tài liệu từ một hồ sơ gốc sang hồ sơ hiện tại
+     */
+    async copyFilesFromOriginal(profileId, sourceId) {
+        const response = await fetch(`${this.API_BASE}/profiles/${profileId}/copy-from/${sourceId}`, {
+            method: 'POST'
+        });
+
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || "Không thể sao chép tài liệu từ hồ sơ gốc.");
+        }
+
+        const data = await response.json();
+        
+        // Cập nhật local state trực tiếp
+        this.state.profiles = this.state.profiles.map(p => {
+            if (p.id === profileId) {
+                return {
+                    ...p,
+                    originalProfileId: data.profile.originalProfileId,
+                    variables: data.profile.variables,
+                    files: data.profile.files,
+                    status: 'new'
+                };
+            }
+            return p;
+        });
+
+        return data.profile;
     },
 
 
@@ -259,14 +291,167 @@ window.AppStore = {
             throw new Error(errData.error || "Không thể hoàn tác thay thế.");
         }
 
-        const updatedProfile = await response.json();
-        
         // Cập nhật local state trực tiếp
         this.state.profiles = this.state.profiles.map(p => 
             p.id === profileId ? updatedProfile : p
         );
 
         return updatedProfile;
+    },
+
+    /**
+     * Cập nhật danh sách biến Mail Merge
+     */
+    async updateProfileVariables(profileId, variables) {
+        const response = await fetch(`${this.API_BASE}/profiles/${profileId}/variables`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ variables })
+        });
+
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || "Không thể cập nhật danh sách biến.");
+        }
+
+        const data = await response.json();
+        
+        // Cập nhật local state
+        this.state.profiles = this.state.profiles.map(p => {
+            if (p.id === profileId) {
+                return {
+                    ...p,
+                    variables: data.variables,
+                    files: data.files
+                };
+            }
+            return p;
+        });
+
+        return data;
+    },
+
+    /**
+     * Cập nhật nội dung HTML soạn thảo của tài liệu
+     */
+    async updateFileContent(profileId, fileId, htmlContent) {
+        const response = await fetch(`${this.API_BASE}/profiles/${profileId}/files/${fileId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ htmlContent })
+        });
+
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || "Không thể lưu nội dung chỉnh sửa.");
+        }
+
+        const data = await response.json();
+
+        // Cập nhật local state
+        this.state.profiles = this.state.profiles.map(p => {
+            if (p.id === profileId) {
+                return {
+                    ...p,
+                    variables: data.variables,
+                    files: data.files
+                };
+            }
+            return p;
+        });
+
+        return data;
+    },
+
+    /**
+     * Tải lên ảnh minh chứng (Base64)
+     */
+    async uploadImage(profileId, name, size, dataUrl) {
+        const response = await fetch(`${this.API_BASE}/profiles/${profileId}/images`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, size, data: dataUrl })
+        });
+
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || "Không thể tải hình ảnh minh chứng.");
+        }
+
+        const newImg = await response.json();
+
+        // Cập nhật local state
+        this.state.profiles = this.state.profiles.map(p => {
+            if (p.id === profileId) {
+                const updatedImages = p.images ? [...p.images] : [];
+                // Thêm vào đầu danh sách
+                updatedImages.unshift(newImg);
+                return {
+                    ...p,
+                    images: updatedImages
+                };
+            }
+            return p;
+        });
+
+        return newImg;
+    },
+
+    /**
+     * Xóa ảnh minh chứng khỏi hồ sơ
+     */
+    async deleteImage(profileId, imageId) {
+        const response = await fetch(`${this.API_BASE}/profiles/${profileId}/images/${imageId}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            throw new Error("Không thể xóa hình ảnh minh chứng.");
+        }
+
+        // Cập nhật local state
+        this.state.profiles = this.state.profiles.map(p => {
+            if (p.id === profileId) {
+                return {
+                    ...p,
+                    images: (p.images || []).filter(img => img.id !== imageId)
+                };
+            }
+            return p;
+        });
+    },
+
+    /**
+     * Kết nối Hồ sơ thanh toán tới Tệp Mail Merge live
+     */
+    async connectMailMerge(profileId, mailMergeId) {
+        const response = await fetch(`${this.API_BASE}/profiles/${profileId}/connect-mailmerge`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mailMergeId })
+        });
+
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || "Không thể kết nối đến Tệp Mail Merge.");
+        }
+
+        const data = await response.json();
+
+        // Cập nhật local state trực tiếp
+        this.state.profiles = this.state.profiles.map(p => {
+            if (p.id === profileId) {
+                return {
+                    ...p,
+                    mailMergeId: data.mailMergeId,
+                    variables: data.variables,
+                    files: data.files
+                };
+            }
+            return p;
+        });
+
+        return data;
     }
 };
 

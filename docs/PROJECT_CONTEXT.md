@@ -6,46 +6,61 @@ Bản đồ trí nhớ này ghi nhận trạng thái và kiến trúc hiện t�
 
 ## 🛠️ Công nghệ sử dụng (Tech Stack)
 - **Frontend Core:** HTML5, Vanilla JavaScript (ES6) chạy trực tiếp trên trình duyệt.
-- **Styling:** CSS3 (Variables, Grid, Flexbox, Keyframes transitions), không dùng thư viện CSS ngoài.
-- **Icons & Fonts:** Font Inter (Google Fonts) và Lucide Icons (CDN).
-- **Lưu trữ:** Web LocalStorage API (Đồng bộ trạng thái ngoại tuyến).
+- **Styling:** CSS3 (Variables, Grid, Flexbox, Keyframes transitions), thiết kế giao diện theo tông màu MobiFone (xanh dương đậm và đỏ) sang trọng, chuyên nghiệp.
+- **Biên tập & Mail Merge:** XLSX parser (đọc Excel client), Rich Text Editor (`contenteditable="true"`), hệ thống thẻ Mail Merge `<span class="mail-merge-tag" data-variable="...">`.
+- **Backend API:** Node.js Express Server, xử lý trích xuất XML Word, giải nén ZIP.
+- **Cơ sở dữ liệu:** MongoDB với Mongoose ODM (Profile, File, Image, Setting).
+- **Thư viện xuất bản Word:** `html-to-docx` chuyển đổi HTML soạn thảo sang file `.docx` thực tế giữ nguyên định dạng.
 
 ---
 
 ## 📁 Cấu trúc thư mục hiện tại
 ```text
 payment_records/
-├── index.html              # Bộ khung giao diện Single Page Application (SPA)
 ├── README.md               # Hướng dẫn chạy nhanh ứng dụng
-├── css/
-│   └── styles.css          # Định nghĩa tokens màu sắc, layout & animations (spin, fade, pulse)
 ├── docs/
 │   ├── setup.md            # Hướng dẫn chạy chi tiết và kịch bản test
-│   └── PROJECT_CONTEXT.md  # [FILE NÀY] Bản đồ ngữ cảnh đồng bộ dự án
-└── js/
-    ├── store.js            # Trình quản lý trạng thái kết nối tới Backend API
-    ├── components.js       # Bộ sinh giao diện động cho các phân vùng chính
-    └── app.js              # Trình bắt sự kiện và điều phối nghiệp vụ chính
+│   ├── PROJECT_CONTEXT.md  # [FILE NÀY] Bản đồ ngữ cảnh đồng bộ dự án
+│   └── ONBOARDING.md       # Tài liệu onboarding thành viên mới
+├── backend/
+│   ├── server.js           # Máy chủ API Express, Mongoose Schemas, dịch vụ chuyển đổi docx
+│   ├── package.json        # Dependencies (html-to-docx, mongoose, word-extractor, adm-zip)
+│   ├── .env                # Biến cấu hình môi trường thực tế (trống)
+│   └── .env.example        # File biến cấu hình mẫu
+└── frontend/
+    ├── index.html          # Bộ khung giao diện Single Page Application (SPA)
+    ├── css/
+    │   └── styles.css      # CSS tokens màu sắc, Rich Text Editor, Dropzones, gallery ảnh
+    └── js/
+        ├── store.js        # Trình quản lý trạng thái kết nối tới Backend API
+        ├── components.js   # Bộ sinh giao diện động cho các phân vùng chính
+        └── app.js          # Trình bắt sự kiện và điều phối nghiệp vụ chính
 ```
 
 ---
 
 ## 🔄 Luồng Dữ liệu Chính (Data Flow)
-1. **Khởi tạo:** `app.js` -> nạp `store.js` -> đồng bộ từ Backend API -> Render danh sách hồ sơ ở Sidebar (`components.js`).
-2. **Tạo hồ sơ:** Người dùng điền modal -> `store.createProfile()` -> cập nhật Backend -> Render lại Sidebar -> Chọn làm active profile.
-3. **Thêm tài liệu:** Người dùng kéo thả file hoặc chọn tải lên từ máy tính -> `store.addFileToProfile()` -> trạng thái hồ sơ quay về `"new"`.
-4. **Quét lỗi:** Bấm quét -> `store.scanProfileFiles()` chạy progress bar -> dùng Regex trích xuất tất cả các đoạn `[RED:nội dung]` từ các file -> lưu danh sách cụm từ đỏ -> chuyển trạng thái hồ sơ sang `"scanned"`.
-5. **Đồng bộ hàng loạt:** Người dùng nhập từ thay thế -> bấm đồng bộ -> `store.applyBulkReplacement()` -> duyệt qua các tệp được chọn, thực hiện thay thế (nếu là file docx sẽ thay thế trong XML) -> lưu trạng thái `"completed"` -> cập nhật preview.
-6. **Xem trước & Tải về:** Trình preview hiển thị so sánh song song -> Người dùng chọn tải -> Hệ thống tái dựng file gốc với nội dung mới và trả về định dạng ban đầu (.docx/.doc/.txt) đảm bảo nguyên vẹn định dạng.
+1. **Khởi tạo:** `app.js` -> nạp `store.js` -> gọi `GET /api/profiles` -> nhận danh sách hồ sơ từ MongoDB -> Render danh sách hồ sơ ở Sidebar (`components.js`) phân chia theo 2 nhóm (Hồ sơ gốc & Hồ sơ chỉnh sửa).
+2. **Tạo hồ sơ:** 
+   - Nếu là **Hồ sơ gốc (Template)**: Khởi tạo trống trên MongoDB.
+   - Nếu là **Hồ sơ chỉnh sửa**: Chọn liên kết tới Hồ sơ gốc mẫu -> Backend tự động clone toàn bộ danh mục biến (`variables`) và sao chép các tệp tài liệu (`files`) sang hồ sơ mới.
+3. **Quản lý biến (Mail Merge):** 
+   - Tải file Excel/CSV lên -> client tự động trích xuất các cột thành các biến -> Lưu qua `PUT /api/profiles/:id/variables`.
+   - Thay đổi giá trị biến ở bảng điều khiển bên trái -> Backend cập nhật DB -> Tự động quét và thay thế text hiển thị trên tất cả thẻ `span.mail-merge-tag` thuộc các file của hồ sơ.
+4. **Trình soạn thảo Rich Text & Đồng bộ ngược:** 
+   - Soạn thảo trực tiếp trên `preview-content-edited` (`contenteditable="true"`). Chèn biến tại vị trí con trỏ chuột (chuột phải mở menu ngữ cảnh).
+   - Người dùng chỉnh sửa trực tiếp giá trị của thẻ Mail Merge trong văn bản -> Khi mất focus (blur), client tự động lưu thông qua API -> Backend phát hiện các thẻ đã bị thay đổi giá trị -> Lưu ngược lại vào danh mục biến chung của Profile -> Đồng bộ sang các tài liệu khác.
+5. **Ảnh minh chứng:** Tải lên ảnh (Biên lai, chứng từ) dưới dạng Base64 -> Lưu trực tiếp vào schema `Image` trong MongoDB -> Hiển thị gallery ảnh trực quan kèm lightbox phóng to.
+6. **Đóng gói & Xuất bản:** Bấm xuất bản ZIP -> Gọi API -> Backend dùng `html-to-docx` chuyển đổi HTML soạn thảo sang file `.docx` thực tế có định dạng hoàn chỉnh -> Đóng gói toàn bộ vào file ZIP trả về client tải xuống.
 
 ---
 
 ## 📌 Tiến độ Hiện tại
 - **Đã hoàn thành (100%):**
-  - [x] Thiết lập cấu trúc dự án.
-  - [x] Thiết kế giao diện CSS tông xanh MobiFone và đỏ cảnh báo.
-  - [x] Xây dựng store lưu trữ trạng thái kết nối Backend API.
-  - [x] Loại bỏ dữ liệu mẫu và nút nạp nhanh, hỗ trợ 100% tài liệu thật.
-  - [x] Xây dựng các components giao diện chính và ghép nối logic điều khiển.
-  - [x] Hướng dẫn cài đặt và chạy thử nghiệm.
-- **Trạng thái:** Dự án Frontend chạy độc lập đã sẵn sàng kiểm thử và sử dụng.
+  - [x] Nâng cấp schema Mongoose hỗ trợ phân loại hồ sơ, biến và ảnh minh chứng.
+  - [x] Triển khai tính năng tự động clone tài liệu & biến từ Hồ sơ gốc.
+  - [x] Xây dựng cơ chế đồng bộ biến hai chiều: từ bảng điều khiển sang văn bản và từ thẻ soạn thảo ngược về danh mục.
+  - [x] Tích hợp bộ Rich Text Word Editor trên giao diện và thư viện `html-to-docx` ở Backend.
+  - [x] Hoàn thiện tính năng tải/xóa ảnh minh chứng dạng Base64 lưu trữ trong MongoDB.
+  - [x] Viết script kiểm thử tự động xác thực toàn bộ luồng nghiệp vụ không có lỗi.
+- **Trạng thái:** Dự án đã sẵn sàng hoạt động ở môi trường local và staging.

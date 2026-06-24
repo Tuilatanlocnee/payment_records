@@ -62,29 +62,36 @@ window.Components = {
         
         if (!container) return;
 
-        // Cập nhật số lượng hồ sơ
-        countBadge.textContent = `${profiles.length} hồ sơ`;
+        const activeTab = document.querySelector('.sidebar-tab.active');
+        const tabType = activeTab ? activeTab.getAttribute('data-type') : 'edited';
+        const tabFiltered = profiles.filter(p => (p.type || 'edited') === tabType);
 
-        if (profiles.length === 0) {
+        // Cập nhật số lượng hồ sơ
+        countBadge.textContent = `${tabFiltered.length} hồ sơ`;
+
+        if (tabFiltered.length === 0) {
             container.innerHTML = `
                 <div style="text-align: center; padding: 40px 10px; color: var(--text-secondary); font-size: 13px;">
                     <i data-lucide="info" style="margin: 0 auto 10px auto; display: block; opacity: 0.5;"></i>
-                    Chưa có hồ sơ thanh toán nào được tạo.
+                    Chưa có hồ sơ nào thuộc nhóm này.
                 </div>
             `;
             safeCreateIcons();
             return;
         }
 
-        container.innerHTML = profiles.map(profile => {
+        container.innerHTML = tabFiltered.map(profile => {
             const isActive = profile.id === activeId ? 'active' : '';
             const fileCount = profile.files ? profile.files.length : 0;
+            const subText = profile.type === 'original' 
+                ? 'Hồ sơ mẫu' 
+                : (profile.type === 'mailmerge' ? 'Mail merge' : `${fileCount} tài liệu`);
             
             return `
                 <li class="profile-item ${isActive}" data-id="${profile.id}" id="profile-item-${profile.id}">
                     <h4>${profile.name}</h4>
                     <div class="profile-meta">
-                        <span>${fileCount} tài liệu</span>
+                        <span>${subText}</span>
                     </div>
                 </li>
             `;
@@ -104,14 +111,50 @@ window.Components = {
 
         if (!profile) {
             container.classList.add('hidden');
+            
+            // Cập nhật nội dung Empty State động theo tab đang active
+            const activeTab = document.querySelector('.sidebar-tab.active');
+            const tabType = activeTab ? activeTab.getAttribute('data-type') : 'edited';
+            
+            const titleEl = emptyState.querySelector('h3');
+            const descEl = emptyState.querySelector('p');
+            
+            // Xóa nút cũ nếu có để tránh trùng lặp
+            const oldBtn = emptyState.querySelector('.btn-direct-create');
+            if (oldBtn) oldBtn.remove();
+            
+            if (titleEl && descEl) {
+                let btnHtml = '';
+                if (tabType === 'mailmerge') {
+                    titleEl.textContent = 'Chưa chọn Mail merge';
+                    descEl.textContent = 'Hãy chọn một mục Mail merge từ danh sách bên trái hoặc tạo mới một tệp Mail merge để bắt đầu.';
+                    btnHtml = `<button class="btn btn-primary btn-direct-create" id="btn-create-mailmerge-direct" style="margin-top: 16px; display: inline-flex; align-items: center; gap: 6px;"><i data-lucide="plus-circle" style="width: 16px; height: 16px;"></i> Tạo Tệp Mail Merge Mới</button>`;
+                } else if (tabType === 'original') {
+                    titleEl.textContent = 'Chưa chọn hồ sơ gốc mẫu';
+                    descEl.textContent = 'Hãy chọn một hồ sơ gốc mẫu từ danh sách bên trái hoặc tạo mới một hồ sơ gốc để tải tài liệu mẫu.';
+                    btnHtml = `<button class="btn btn-primary btn-direct-create" id="btn-create-original-direct" style="margin-top: 16px; display: inline-flex; align-items: center; gap: 6px;"><i data-lucide="plus-circle" style="width: 16px; height: 16px;"></i> Tạo Hồ Sơ Gốc Mẫu Mới</button>`;
+                } else {
+                    titleEl.textContent = 'Chưa chọn hồ sơ thanh toán';
+                    descEl.textContent = 'Hãy chọn một hồ sơ từ danh sách bên trái hoặc tạo mới một hồ sơ thanh toán để bắt đầu làm việc.';
+                    btnHtml = `<button class="btn btn-primary btn-direct-create" id="btn-create-edited-direct" style="margin-top: 16px; display: inline-flex; align-items: center; gap: 6px;"><i data-lucide="plus-circle" style="width: 16px; height: 16px;"></i> Tạo Hồ Sơ Thanh Toán Mới</button>`;
+                }
+                
+                if (btnHtml) {
+                    emptyState.insertAdjacentHTML('beforeend', btnHtml);
+                }
+            }
+            
             emptyState.classList.remove('hidden');
+            safeCreateIcons();
             return;
         }
 
         emptyState.classList.add('hidden');
         container.classList.remove('hidden');
 
-        const hasReplacements = profile.replacements && profile.replacements.length > 0;
+        const isOriginal = profile.type === 'original';
+        const isMailMerge = profile.type === 'mailmerge';
+        const isEdited = !isOriginal && !isMailMerge;
 
         container.innerHTML = `
             <!-- Nút quay lại trên Mobile -->
@@ -122,16 +165,26 @@ window.Components = {
             <!-- Tiêu đề chi tiết hồ sơ -->
             <div class="detail-header">
                 <div class="detail-title-wrapper" style="min-width: 0;">
-                    <h2>${profile.name}</h2>
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                        <h2 style="margin: 0;">${profile.name}</h2>
+                        ${isOriginal 
+                            ? `<span class="badge" style="background-color: #0284c7; color: #ffffff; border-color: #0284c7;">Hồ sơ gốc (Mẫu)</span>` 
+                            : (isMailMerge 
+                                ? `<span class="badge" style="background-color: #059669; color: #ffffff; border-color: #059669;">Tệp Mail Merge</span>`
+                                : `<span class="badge" style="background-color: var(--primary-color); color: #ffffff; border-color: var(--primary-color);">Hồ sơ chỉnh sửa</span>`
+                              )}
+                    </div>
                     <div class="detail-subtitle">
                         Tạo lúc: <strong>${this.formatDate(profile.createdAt)}</strong>
                     </div>
                 </div>
                 <div class="detail-actions" style="display: flex; gap: 10px;">
+                    ${isEdited ? `
                     <button class="btn btn-secondary" id="btn-reset-profile" data-id="${profile.id}" style="color: #f59e0b; border-color: rgba(245, 158, 11, 0.3);">
                         <i data-lucide="refresh-cw"></i>
                         Khôi phục bản gốc
                     </button>
+                    ` : ''}
                     <button class="btn btn-danger" id="btn-delete-profile" data-id="${profile.id}">
                         <i data-lucide="trash-2"></i>
                         Xóa hồ sơ
@@ -140,7 +193,7 @@ window.Components = {
             </div>
 
             <!-- Khối 1: Tải lên tài liệu và Quản lý file -->
-            <div class="card" id="card-files-section">
+            <div class="card ${isMailMerge ? 'hidden' : ''}" id="card-files-section">
                 <div class="card-title">
                     <i data-lucide="file-text"></i> Danh sách tài liệu trong hồ sơ
                 </div>
@@ -153,25 +206,85 @@ window.Components = {
                     <input type="file" id="file-input-hidden" class="hidden" multiple accept=".txt,.docx">
                 </div>
 
-
                 <!-- Danh sách các file hiện tại -->
                 <ul class="file-list" id="detail-file-list">
                     ${this.renderFiles(profile.files, profile.id)}
                 </ul>
             </div>
 
-            <!-- Khối 2: Bảng Tìm kiếm & Thay thế văn bản -->
-            <div class="card" id="card-search-replace-section">
-                ${this.renderSearchBlock(profile)}
-            </div>
+            <!-- Khối Tab Bar và Tab Content thay thế cho grid cũ để tối ưu diện tích và UX -->
+            ${(() => {
+                if (isOriginal) return ''; // Ẩn hoàn toàn đối với Hồ sơ gốc mẫu
 
-            <!-- Khối 3: Trình Xem Trước So Sánh Song Song (Split Preview) -->
-            <div class="card ${profile.files && profile.files.length > 0 ? '' : 'hidden'}" id="card-preview-section">
-                ${this.renderPreviewBlock(profile, activeSearchQuery)}
-            </div>
+                const isMailMerge = profile.type === 'mailmerge';
+                const isEdited = !isOriginal && !isMailMerge;
+                const hasFiles = profile.files && profile.files.length > 0;
+                
+                const activeTab = (window.AppWorkspaceState && window.AppWorkspaceState.activeTab) || 'variables';
 
-            <!-- Khối 4: Tải xuống hồ sơ hoàn chỉnh -->
-            <div class="card" id="card-export-section">
+                const isVariablesActive = activeTab === 'variables';
+                const isSearchActive = activeTab === 'search';
+                const isPreviewActive = activeTab === 'preview';
+                const isImagesActive = activeTab === 'images';
+
+                return `
+                <!-- Thanh Header Tab -->
+                <div class="workspace-tabs-container">
+                    <div class="workspace-tabs">
+                        <!-- Tab Tài liệu: Hiện cho Hồ sơ gốc và Hồ sơ thanh toán (kể cả khi chưa có file) -->
+                        <button class="workspace-tab ${!isMailMerge ? '' : 'hidden'} ${isPreviewActive ? 'active' : ''}" data-tab="preview">
+                            <i data-lucide="file-text" style="width: 16px; height: 16px;"></i>
+                            <span>Tài liệu</span>
+                        </button>
+
+                        <!-- Tab Biến Mail Merge: Hiện cho Hồ sơ thanh toán và Tệp Mail Merge -->
+                        <button class="workspace-tab ${isVariablesActive ? 'active' : ''}" data-tab="variables">
+                            <i data-lucide="variable" style="width: 16px; height: 16px;"></i>
+                            <span>Biến Mail Merge</span>
+                            <span class="tab-badge">${profile.variables ? profile.variables.length : 0}</span>
+                        </button>
+
+                        <!-- Tab Ảnh minh chứng: Chỉ hiện cho Hồ sơ thanh toán -->
+                        <button class="workspace-tab ${isImagesActive ? 'active' : ''} ${isEdited ? '' : 'hidden'}" data-tab="images">
+                            <i data-lucide="camera" style="width: 16px; height: 16px;"></i>
+                            <span>Ảnh minh chứng</span>
+                            <span class="tab-badge">${profile.images ? profile.images.length : 0}</span>
+                        </button>
+
+                        <!-- Tab Tìm kiếm: Chỉ hiện cho Hồ sơ thanh toán -->
+                        <button class="workspace-tab ${isSearchActive ? 'active' : ''} ${isEdited ? '' : 'hidden'}" data-tab="search">
+                            <i data-lucide="search" style="width: 16px; height: 16px;"></i>
+                            <span>Tìm kiếm & Thay thế</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="workspace-tab-content">
+                    <!-- Khối 2: Quản lý các biến Mail Merge từ Excel -->
+                    <div class="card tab-pane ${isVariablesActive ? '' : 'hidden'}" id="card-variables-section" style="margin-bottom: 0;">
+                        ${this.renderVariablesBlock(profile)}
+                    </div>
+
+                    <!-- Khối 3: Bảng Tìm kiếm & Thay thế văn bản -->
+                    <div class="card tab-pane ${isSearchActive ? '' : 'hidden'} ${isEdited ? '' : 'hidden'}" id="card-search-replace-section" style="margin-bottom: 0;">
+                        ${this.renderSearchBlock(profile, activeSearchQuery)}
+                    </div>
+
+                    <!-- Khối 4: Trình Xem Trước So Sánh Song Song & Soạn thảo (Split Preview Editor) -->
+                    <div class="card tab-pane ${!isMailMerge ? '' : 'hidden'} ${isPreviewActive ? '' : 'hidden'}" id="card-preview-section" style="margin-bottom: 0;">
+                        ${this.renderPreviewBlock(profile, activeSearchQuery)}
+                    </div>
+
+                    <!-- Khối 5: Bộ sưu tập ảnh minh chứng -->
+                    <div class="card tab-pane ${isImagesActive ? '' : 'hidden'} ${isEdited ? '' : 'hidden'}" id="card-images-section" style="margin-bottom: 0;">
+                        ${this.renderImagesBlock(profile)}
+                    </div>
+                </div>
+                `;
+            })()}
+
+            <!-- Khối 6: Tải xuống hồ sơ hoàn chỉnh -->
+            <div class="card ${isEdited && profile.files && profile.files.length > 0 ? '' : 'hidden'}" id="card-export-section">
                 ${this.renderExportBlock(profile)}
             </div>
         `;
@@ -208,9 +321,252 @@ window.Components = {
     },
 
     /**
+     * Render khu vực Quản lý Biến Mail Merge
+     */
+    renderVariablesBlock(profile) {
+        const isMailMerge = profile.type === 'mailmerge';
+        const variables = profile.variables || [];
+
+        // 1. Tạo selector kết nối đối với Hồ sơ thanh toán (edited)
+        let connectSelectorHtml = '';
+        if (profile.type === 'edited' || !profile.type) {
+            // Lấy tất cả các Tệp Mail Merge (type === 'mailmerge') từ Store
+            const allMailMerges = typeof AppStore !== 'undefined' ? AppStore.getProfiles().filter(p => p.type === 'mailmerge') : [];
+            const options = allMailMerges.map(mm => `
+                <option value="${mm.id}" ${profile.mailMergeId === mm.id ? 'selected' : ''}>${mm.name}</option>
+            `).join('');
+
+            connectSelectorHtml = `
+                <div class="mail-merge-connect-container" style="margin-bottom: 16px; padding: 12px; border: 1px dashed var(--border-color); border-radius: var(--radius-md); background-color: var(--bg-secondary);">
+                    <label for="select-mail-merge-connect" style="font-size: 13px; font-weight: 600; display: block; margin-bottom: 6px;">
+                        <i data-lucide="link" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i>
+                        Kết nối tới Tệp Mail Merge live:
+                    </label>
+                    <select id="select-mail-merge-connect" style="width: 100%; height: 38px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0 10px; font-size: 13px; background-color: var(--bg-primary); color: var(--text-primary);">
+                        <option value="">-- Chọn Tệp Mail Merge để kết nối --</option>
+                        ${options}
+                    </select>
+                    <p style="font-size: 11px; color: var(--text-muted); margin: 6px 0 0 0;">
+                        Khi được kết nối, toàn bộ tài liệu trong hồ sơ thanh toán này sẽ tự động nhận diện và đồng bộ các biến Mail Merge live từ Tệp Mail Merge được chọn.
+                    </p>
+                </div>
+            `;
+        }
+
+        // Gom nhóm variables theo group
+        const groups = {};
+        variables.forEach((v, index) => {
+            const groupName = v.group || 'Chung';
+            if (!groups[groupName]) {
+                groups[groupName] = [];
+            }
+            groups[groupName].push({ ...v, originalIndex: index });
+        });
+
+        const importDropzone = `
+            <div class="excel-dropzone" id="excel-dropzone" data-profile-id="${profile.id}" style="margin-top: 16px;">
+                <i data-lucide="sheet" style="width: 24px; height: 24px; color: var(--success-color); margin-bottom: 6px; display: inline-block;"></i>
+                <p style="font-size: 12.5px; margin: 0;">Kéo thả file <strong>Excel Mail Merge (.xlsx, .csv)</strong> hoặc <strong>bấm để chọn</strong></p>
+                <small style="color: var(--text-muted); font-size: 11px;">Hệ thống sẽ nạp các biến trích xuất vào nhóm biến của hồ sơ này.</small>
+                <input type="file" id="excel-input-hidden" class="hidden" accept=".xlsx,.xls,.csv">
+            </div>
+        `;
+
+        const isExpanded = true;
+        const displayStyle = "display: block;";
+        const bodyClass = "card-body collapsible-body";
+        const iconTransform = "transform: rotate(180deg);";
+
+        const headerHtml = `
+            <div class="variables-group-header">
+                <p style="font-size: 12px; color: var(--text-secondary); margin: 0; max-width: 70%;">
+                    ${isMailMerge 
+                        ? 'Định nghĩa các mục và trường Mail Merge. Các biến này sẽ đồng bộ trực tiếp tới tài liệu của hồ sơ kết nối.' 
+                        : 'Danh sách các mục biến Mail Merge. Thay đổi giá trị tại đây sẽ tự động đồng bộ sang tất cả tài liệu.'}
+                </p>
+                <button class="btn btn-primary" id="btn-create-group" style="height: 32px; font-size: 12px;">
+                    <i data-lucide="folder-plus"></i> Tạo mục mới
+                </button>
+            </div>
+        `;
+
+        let mainContentHtml = '';
+
+        if (!isMailMerge && !profile.mailMergeId) {
+            mainContentHtml = `
+                <div style="text-align: center; color: var(--text-muted); padding: 30px; border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
+                    Hồ sơ thanh toán này chưa được kết nối tới Tệp Mail Merge nào. Vui lòng chọn và kết nối tới một Tệp Mail Merge ở trên để liên kết và chỉnh sửa các biến cho tài liệu.
+                </div>
+            `;
+        } else if (Object.keys(groups).length === 0) {
+            mainContentHtml = `
+                <div style="text-align: center; color: var(--text-muted); padding: 30px; border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
+                    Chưa có mục biến Mail Merge nào. Hãy bấm nút "Tạo mục mới" hoặc kéo thả file Excel để bắt đầu.
+                </div>
+            `;
+        } else {
+            mainContentHtml = Object.keys(groups).sort().map(groupName => {
+                const groupVars = groups[groupName];
+                
+                const variableRows = groupVars.map((v) => {
+                    // Dòng biến
+                    return `
+                        <tr class="variable-row" data-name="${v.name}" data-group="${groupName}">
+                            <td style="width: 40%;">
+                                <div class="field-key-wrapper">
+                                    <span class="field-key-bracket">{{</span>
+                                    <input type="text" 
+                                           class="var-key-input field-key-input" 
+                                           value="${v.name}" 
+                                           placeholder="TEN_TRUONG..." 
+                                           data-original-name="${v.name}" 
+                                           data-group="${groupName}">
+                                    <span class="field-key-bracket">}}</span>
+                                </div>
+                            </td>
+                            <td style="width: 50%;">
+                                <input type="text" 
+                                       class="var-val-input field-value-input" 
+                                       value="${v.value || ''}" 
+                                       placeholder="(Trống)" 
+                                       data-name="${v.name}" 
+                                       data-group="${groupName}">
+                            </td>
+                            <td style="text-align: center; width: 10%;">
+                                <button class="btn-delete-field btn-delete-variable" data-name="${v.name}" data-group="${groupName}" title="Xóa trường này">
+                                    <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+
+                return `
+                    <div class="mail-merge-group-card" data-group-name="${groupName}">
+                        <div class="group-card-header">
+                            <div class="group-title-wrapper">
+                                <i data-lucide="folder" class="group-icon"></i>
+                                <span class="group-title-text" contenteditable="true" data-original-group="${groupName}" title="Click vào để sửa tên mục">${groupName}</span>
+                            </div>
+                            <div class="group-actions">
+                                <button class="btn btn-secondary btn-add-field-to-group" data-group="${groupName}">
+                                    <i data-lucide="plus"></i> Thêm trường
+                                </button>
+                                <button class="btn btn-danger btn-delete-group" data-group="${groupName}" title="Xóa toàn bộ mục này">
+                                    <i data-lucide="trash-2"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="group-card-body">
+                            <table class="group-fields-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 40%;">Tên trường (Key)</th>
+                                        <th style="width: 50%;">Giá trị (Value)</th>
+                                        <th style="text-align: center; width: 10%;">Xóa</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${variableRows}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        const showVariablesBody = isMailMerge || !!profile.mailMergeId;
+
+        return `
+            <div class="card-header-toggle" id="variables-section-toggle" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;">
+                <div class="card-title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="variable" style="color: var(--primary-color);"></i> Mục và biến Mail Merge (${variables.length})
+                </div>
+                <i data-lucide="chevron-down" class="toggle-icon" id="variables-section-toggle-icon" style="transition: transform var(--transition-fast); ${iconTransform}"></i>
+            </div>
+            
+            <div class="${bodyClass}" id="variables-section-body" style="${displayStyle} margin-top: 14px;">
+                <div class="variables-section-container" style="display: block;">
+                    ${connectSelectorHtml}
+
+                    ${showVariablesBody ? `
+                        ${headerHtml}
+
+                        <div class="groups-container" style="margin-top: 12px;">
+                            ${mainContentHtml}
+                        </div>
+
+                        ${importDropzone}
+                    ` : `
+                        <div class="groups-container" style="margin-top: 12px;">
+                            ${mainContentHtml}
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+    },
+
+    /**
+     * Render khu vực Quản lý Ảnh minh chứng
+     */
+    renderImagesBlock(profile) {
+        const images = profile.images || [];
+        const isExpanded = true;
+        const displayStyle = "display: block;";
+        const bodyClass = "card-body collapsible-body";
+        const iconTransform = "transform: rotate(180deg);";
+
+        return `
+            <div class="card-header-toggle" id="images-section-toggle" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;">
+                <div class="card-title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="camera" style="color: var(--primary-color);"></i> Ảnh minh chứng hồ sơ (${images.length})
+                </div>
+                <i data-lucide="chevron-down" class="toggle-icon" id="images-section-toggle-icon" style="transition: transform var(--transition-fast); ${iconTransform}"></i>
+            </div>
+            
+            <div class="${bodyClass}" id="images-section-body" style="${displayStyle} margin-top: 14px;">
+                <div class="evidence-images-section" style="display: block;">
+                    <p style="font-size: 12px; color: var(--text-secondary); margin: 0 0 4px 0;">
+                        Tải lên các hình ảnh minh chứng để lưu trữ lâu dài cùng bộ hồ sơ này (Biên lai, chứng từ, ảnh thực địa...).
+                    </p>
+
+                    <!-- Vùng upload ảnh -->
+                    <div class="images-dropzone" id="images-dropzone" data-profile-id="${profile.id}">
+                        <i data-lucide="image" style="width: 32px; height: 32px; color: var(--primary-color); margin-bottom: 6px; display: inline-block;"></i>
+                        <p style="font-size: 13px; margin: 0;">Kéo thả các file ảnh minh chứng vào đây hoặc <strong>bấm để chọn ảnh</strong></p>
+                        <small style="color: var(--text-muted); font-size: 11px;">Hỗ trợ định dạng JPG, PNG, GIF. Dung lượng tối đa 10MB/ảnh.</small>
+                        <input type="file" id="images-input-hidden" class="hidden" multiple accept="image/*">
+                    </div>
+
+                    <!-- Gallery ảnh -->
+                    <div class="images-gallery-grid" id="images-gallery-grid">
+                        ${images.map(img => `
+                            <div class="image-gallery-item" data-id="${img.id}" data-name="${img.name}" data-src="${img.data}">
+                                <img src="${img.data}" alt="${img.name}" title="${img.name}">
+                                <div class="image-gallery-item-overlay">
+                                    <button class="image-item-delete-btn" data-image-id="${img.id}" data-profile-id="${profile.id}" title="Xóa hình ảnh này">
+                                        <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                        ${images.length === 0 ? `
+                            <div style="grid-column: 1/-1; text-align: center; padding: 20px; color: var(--text-muted); font-size: 12.5px;">
+                                Chưa có hình ảnh minh chứng nào trong hồ sơ này.
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    /**
      * Dựng nội dung khu vực Tìm kiếm và Thay thế
      */
-    renderSearchBlock(profile) {
+    renderSearchBlock(profile, activeSearchQuery = "") {
         const fileCount = profile.files ? profile.files.length : 0;
 
         if (fileCount === 0) {
@@ -250,33 +606,43 @@ window.Components = {
             </div>
         ` : '';
 
+        const displayStyle = "display: block;";
+        const bodyClass = "card-body collapsible-body";
+        const iconTransform = "transform: rotate(180deg);";
+
         return `
-            <div class="card-title">
-                <i data-lucide="search"></i> Tìm kiếm & Thay thế văn bản hàng loạt
-            </div>
-            <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 16px;">
-                Nhập cụm từ bạn muốn tìm kiếm trên tất cả các tài liệu của hồ sơ này. Hệ thống sẽ lọc ra các tài liệu chứa cụm từ đó và hỗ trợ thay thế đồng bộ.
-            </p>
-            
-            <!-- Form Tìm kiếm -->
-            <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-                <input type="text" id="search-phrase-input" class="replacement-input" placeholder="Nhập từ hoặc cụm từ cần tìm (ví dụ: Phương Nam, 120.000.000)..." style="flex: 1; height: 38px;">
-                <button class="btn btn-primary" id="btn-trigger-search" style="height: 38px; padding: 0 20px;">
-                    <i data-lucide="search"></i> Tìm kiếm
-                </button>
-                <button class="btn btn-secondary hidden" id="btn-clear-search" style="height: 38px; padding: 0 16px;" title="Hủy bộ lọc tìm kiếm">
-                    <i data-lucide="x-circle"></i> Hủy
-                </button>
-            </div>
-            
-            <!-- Vùng hiển thị kết quả -->
-            <div id="search-results-area">
-                <div style="text-align: center; padding: 20px; color: var(--text-secondary); font-size: 13px; border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
-                    <i data-lucide="info" style="width: 20px; height: 20px; margin: 0 auto 8px auto; opacity: 0.5; display: block;"></i>
-                    Hãy nhập cụm từ tìm kiếm ở trên để bắt đầu chỉnh sửa.
+            <div class="card-header-toggle" id="search-replace-toggle" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;">
+                <div class="card-title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="search"></i> Tìm kiếm & Thay thế văn bản hàng loạt
                 </div>
+                <i data-lucide="chevron-down" class="toggle-icon" id="search-replace-toggle-icon" style="transition: transform var(--transition-fast); ${iconTransform}"></i>
             </div>
-            ${replacementsHtml}
+            
+            <div class="${bodyClass}" id="search-replace-body" style="${displayStyle} margin-top: 14px;">
+                <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 16px;">
+                    Nhập cụm từ bạn muốn tìm kiếm trên tất cả các tài liệu của hồ sơ này. Hệ thống sẽ lọc ra các tài liệu chứa cụm từ đó và hỗ trợ thay thế đồng bộ.
+                </p>
+                
+                <!-- Form Tìm kiếm -->
+                <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                    <input type="text" id="search-phrase-input" class="replacement-input" placeholder="Nhập từ hoặc cụm từ cần tìm (ví dụ: Phương Nam, 120.000.000)..." style="flex: 1; height: 38px;">
+                    <button class="btn btn-primary" id="btn-trigger-search" style="height: 38px; padding: 0 20px;">
+                        <i data-lucide="search"></i> Tìm kiếm
+                    </button>
+                    <button class="btn btn-secondary hidden" id="btn-clear-search" style="height: 38px; padding: 0 16px;" title="Hủy bộ lọc tìm kiếm">
+                        <i data-lucide="x-circle"></i> Hủy
+                    </button>
+                </div>
+                
+                <!-- Vùng hiển thị kết quả -->
+                <div id="search-results-area">
+                    <div style="text-align: center; padding: 20px; color: var(--text-secondary); font-size: 13px; border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
+                        <i data-lucide="info" style="width: 20px; height: 20px; margin: 0 auto 8px auto; opacity: 0.5; display: block;"></i>
+                        Hãy nhập cụm từ tìm kiếm ở trên để bắt đầu chỉnh sửa.
+                    </div>
+                </div>
+                ${replacementsHtml}
+            </div>
         `;
     },
 
@@ -443,7 +809,85 @@ window.Components = {
      * Dựng nội dung khu vực xem trước (Preview)
      */
     renderPreviewBlock(profile, activeSearchQuery = "") {
-        if (!profile.files || profile.files.length === 0) return '';
+        const isExpanded = true;
+        const displayStyle = "display: block;";
+        const bodyClass = "card-body collapsible-body";
+        const iconTransform = "transform: rotate(180deg);";
+
+        // Trường hợp chưa có file trong hồ sơ
+        if (!profile.files || profile.files.length === 0) {
+            const originalProfiles = (window.AppStore ? window.AppStore.getProfiles() : []).filter(p => p.type === 'original');
+            // Chỉ lấy các hồ sơ gốc có file để sao chép
+            const availableOriginals = originalProfiles.filter(p => p.files && p.files.length > 0);
+
+            let originalsHtml = '';
+            if (availableOriginals.length === 0) {
+                originalsHtml = `
+                    <div style="text-align: center; padding: 30px 10px; color: var(--text-muted); background: #f8fafc; border-radius: var(--radius-md); border: 1px dashed var(--border-color);">
+                        <i data-lucide="info" style="width: 24px; height: 24px; margin-bottom: 6px; color: var(--text-muted);"></i>
+                        <p style="font-size: 12.5px; margin: 0;">Chưa có Hồ sơ gốc mẫu nào có sẵn tài liệu trên hệ thống.</p>
+                    </div>
+                `;
+            } else {
+                originalsHtml = `
+                    <div class="original-profiles-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; padding-right: 4px;">
+                        ${availableOriginals.map(p => `
+                            <div class="btn-copy-template-card" data-source-id="${p.id}" style="padding: 12px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: #ffffff; cursor: pointer; transition: all var(--transition-fast) ease; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                                <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+                                    <i data-lucide="folder" style="color: var(--primary-color); width: 18px; height: 18px; flex-shrink: 0;"></i>
+                                    <span style="font-size: 13px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${p.name}">${p.name}</span>
+                                </div>
+                                <span class="badge" style="background-color: var(--primary-light); color: var(--primary-color); font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 600; flex-shrink: 0;">${p.files.length} file mẫu</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="card-header-toggle" id="preview-section-toggle" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;">
+                    <div class="card-title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                        <i data-lucide="file-text" style="color: var(--primary-color);"></i>
+                        Tài liệu hồ sơ
+                    </div>
+                    <i data-lucide="chevron-down" class="toggle-icon" id="preview-section-toggle-icon" style="transition: transform var(--transition-fast); ${iconTransform}"></i>
+                </div>
+                
+                <div class="${bodyClass}" id="preview-section-body" style="${displayStyle} margin-top: 14px;">
+                    <div style="text-align: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border-color);">
+                        <h3 style="font-size: 15px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px;">Hồ sơ chưa có tài liệu nào</h3>
+                        <p style="font-size: 12.5px; color: var(--text-secondary); margin: 0; max-width: 520px; margin: 0 auto; line-height: 1.5;">Vui lòng chọn một trong hai phương án dưới đây để thêm tài liệu vào hồ sơ hiện tại và bắt đầu chỉnh sửa.</p>
+                    </div>
+
+                    <div class="preview-empty-options" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                        <!-- Cột 1: Tự đẩy file vào -->
+                        <div style="display: flex; flex-direction: column; gap: 10px;">
+                            <h4 style="font-size: 13.5px; font-weight: 700; color: var(--text-secondary); margin: 0; display: flex; align-items: center; gap: 6px;">
+                                <span style="background-color: var(--bg-input); width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; color: var(--text-primary);">1</span>
+                                Tự đẩy file tài liệu mới
+                            </h4>
+                            <div class="upload-dropzone" id="preview-upload-dropzone" style="flex: 1; min-height: 180px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px dashed var(--border-color); border-radius: var(--radius-md); background: #f8fafc; cursor: pointer; transition: all var(--transition-fast) ease;">
+                                <i data-lucide="upload-cloud" style="width: 36px; height: 36px; margin-bottom: 8px; color: var(--primary-color);"></i>
+                                <p style="font-size: 13px; font-weight: 600; margin: 0 0 4px 0; color: var(--text-primary);">Tải tài liệu lên trực tiếp</p>
+                                <small style="color: var(--text-muted); font-size: 11px;">Kéo thả tệp hoặc click để chọn (.docx, .txt)</small>
+                                <input type="file" id="preview-file-input-hidden" class="hidden" multiple accept=".txt,.docx">
+                            </div>
+                        </div>
+
+                        <!-- Cột 2: Chọn từ hồ sơ gốc -->
+                        <div style="display: flex; flex-direction: column; gap: 10px;">
+                            <h4 style="font-size: 13.5px; font-weight: 700; color: var(--text-secondary); margin: 0; display: flex; align-items: center; gap: 6px;">
+                                <span style="background-color: var(--bg-input); width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; color: var(--text-primary);">2</span>
+                                Chọn lấy mẫu từ Hồ sơ gốc
+                            </h4>
+                            <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-start;">
+                                ${originalsHtml}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
 
         let displayFiles = profile.files;
         if (activeSearchQuery && activeSearchQuery.trim() !== "") {
@@ -465,39 +909,70 @@ window.Components = {
         `).join('');
 
         return `
-            <div class="card-title">
-                <i data-lucide="eye" style="color: var(--primary-color);"></i>
-                Trình Xem Trước So Sánh Song Song (Split Preview)
-            </div>
-            <div class="preview-pane-wrapper">
-                <div class="preview-selector">
-                    <label for="select-preview-file" style="font-size: 13px; font-weight: 600;">Chọn tài liệu xem trước:</label>
-                    <select id="select-preview-file">
-                        ${options}
-                    </select>
+            <div class="card-header-toggle" id="preview-section-toggle" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;">
+                <div class="card-title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="eye" style="color: var(--primary-color);"></i>
+                    Trình Xem Trước & Soạn Thảo Văn Bản (Word Editor)
                 </div>
-
-                <!-- Bố cục so sánh 2 bên (Split View) -->
-                <div class="preview-split-container">
-                    <!-- Bên trái: Tài liệu gốc (Highlight Đỏ từ cũ) -->
-                    <div class="preview-column">
-                        <div class="preview-column-header original">
-                            <span>VĂN BẢN GỐC (CHƯA SỬA)</span>
-                            <span class="badge" style="background-color: var(--accent-red-bg); color: var(--accent-red);">Cụm từ gốc</span>
-                        </div>
-                        <div class="preview-body-content" id="preview-content-original">
-                            <!-- Nội dung được cập nhật động bằng js -->
-                        </div>
+                <i data-lucide="chevron-down" class="toggle-icon" id="preview-section-toggle-icon" style="transition: transform var(--transition-fast); ${iconTransform}"></i>
+            </div>
+            
+            <div class="${bodyClass}" id="preview-section-body" style="${displayStyle} margin-top: 14px;">
+                <div class="preview-pane-wrapper">
+                    <div class="preview-selector">
+                        <label for="select-preview-file" style="font-size: 13px; font-weight: 600;">Chọn tài liệu soạn thảo:</label>
+                        <select id="select-preview-file">
+                            ${options}
+                        </select>
                     </div>
 
-                    <!-- Bên phải: Tài liệu sau khi chỉnh sửa (Highlight Xanh từ mới) -->
-                    <div class="preview-column">
-                        <div class="preview-column-header edited">
-                            <span>VĂN BẢN ĐÃ SỬA (KẾT QUẢ ĐỒNG BỘ)</span>
-                            <span class="badge" style="background-color: var(--accent-green-bg); color: var(--accent-green);">Đã thay thế</span>
-                        </div>
-                        <div class="preview-body-content" id="preview-content-edited">
-                            <!-- Nội dung được cập nhật động bằng js -->
+                    <!-- Trình soạn thảo Rich Text (Chỉ cần 1 văn bản) -->
+                    <div class="preview-split-container" style="grid-template-columns: 1fr;">
+                        <!-- Trình soạn thảo Rich Text -->
+                        <div class="preview-column">
+                            <div class="preview-column-header edited">
+                                <span>SOẠN THẢO VĂN BẢN TRỰC TIẾP</span>
+                                <span class="badge" style="background-color: var(--accent-green-bg); color: var(--accent-green);">Định dạng Word</span>
+                            </div>
+                            
+                            <div class="editor-wrapper">
+                                <!-- Thanh công cụ định dạng -->
+                                <div class="editor-toolbar">
+                                    <div class="toolbar-group">
+                                        <button class="toolbar-btn" data-command="bold" title="In đậm" style="font-weight: bold;">B</button>
+                                        <button class="toolbar-btn" data-command="italic" title="In nghiêng" style="font-style: italic;">I</button>
+                                        <button class="toolbar-btn" data-command="underline" title="Gạch chân" style="text-decoration: underline;">U</button>
+                                    </div>
+                                    <div class="toolbar-group">
+                                        <select class="toolbar-select font-name-select" title="Phông chữ">
+                                            <option value="Arial" selected>Arial</option>
+                                            <option value="Times New Roman">Times New Roman</option>
+                                            <option value="Courier New">Courier New</option>
+                                            <option value="Inter">Inter</option>
+                                            <option value="Montserrat">Montserrat</option>
+                                        </select>
+                                        <select class="toolbar-select font-size-select" title="Cỡ chữ">
+                                            <option value="3">12px</option>
+                                            <option value="4" selected>14px</option>
+                                            <option value="5">16px</option>
+                                            <option value="6">18px</option>
+                                            <option value="7">24px</option>
+                                        </select>
+                                    </div>
+                                    <div class="toolbar-group">
+                                        <input type="color" class="toolbar-color-picker" title="Màu chữ" value="#000000">
+                                    </div>
+                                    <div class="toolbar-group" style="display: flex; gap: 6px;">
+                                        <button class="btn btn-secondary btn-insert-merge-field-trigger" style="height: 28px; font-size: 11px; padding: 0 8px;">
+                                            <i data-lucide="plus-circle" style="width: 12px; height: 12px; margin-right: 4px;"></i> Chèn biến Mail Merge
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="rich-text-editor" id="preview-content-edited" contenteditable="true" spellcheck="false">
+                                    <!-- Nội dung soạn thảo được tải động ở đây -->
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -691,11 +1166,22 @@ window.Components = {
         const originalContainer = document.getElementById('preview-content-original');
         const editedContainer = document.getElementById('preview-content-edited');
 
-        if (!file || !originalContainer || !editedContainer) return;
+        if (!file || !editedContainer) return;
 
         const replacements = profile ? profile.replacements : [];
 
-        originalContainer.innerHTML = this.formatContentForPreview(file.originalContent, 'original', replacements, activeSearchQuery);
-        editedContainer.innerHTML = this.formatContentForPreview(file.currentContent, 'edited', replacements, activeSearchQuery);
+        if (originalContainer) {
+            originalContainer.innerHTML = this.formatContentForPreview(file.originalContent, 'original', replacements, activeSearchQuery);
+        }
+        
+        // Nạp nội dung vào editor dựa trên định dạng (Plain text vs HTML)
+        const isHtml = /<div|<p|<br|<table|<span/i.test(file.currentContent || "");
+        if (isHtml) {
+            editedContainer.innerHTML = file.currentContent || "";
+        } else {
+            // Chuyển đổi văn bản thuần sang cấu trúc div/br phù hợp với soạn thảo contenteditable
+            const lines = (file.currentContent || "").split('\n');
+            editedContainer.innerHTML = lines.map(line => `<div>${line.trim() === "" ? '<br>' : line}</div>`).join('');
+        }
     }
 };

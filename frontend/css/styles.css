@@ -1671,3 +1671,887 @@ form {
         padding: 20px;
     }
 }
+
+/* ==========================================================================
+   BỔ SUNG CSS CHO TÍNH NĂNG MỚI: MAIL MERGE & HỒ SƠ GỐC & RICH TEXT EDITOR
+   ========================================================================== */
+
+/* 1. Sidebar Tabs phân loại Hồ sơ */
+.sidebar-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    background-color: #f1f5f9;
+    padding: 2px;
+    margin: 0 14px 10px 14px;
+    border-radius: var(--radius-md);
+}
+
+.sidebar-tab {
+    flex: 1;
+    text-align: center;
+    padding: 8px 4px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all var(--transition-fast);
+}
+
+.sidebar-tab:hover {
+    color: var(--text-primary);
+}
+
+.sidebar-tab.active {
+    background-color: #ffffff;
+    color: var(--primary-color);
+    box-shadow: var(--shadow-sm);
+}
+
+/* 2. Quản lý biến Mail Merge */
+.variables-section-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 24px;
+    border: 1px solid var(--border-color);
+    padding: 16px;
+    border-radius: var(--radius-md);
+    background-color: #f8fafc;
+}
+
+.variables-header-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.variables-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    background-color: #ffffff;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+.variables-table th, .variables-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+}
+
+.variables-table th {
+    background-color: #f1f5f9;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.variables-table input {
+    width: 100%;
+    height: 28px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 0 6px;
+    background-color: transparent;
+    font-size: 13px;
+    transition: var(--transition-fast);
+}
+
+.variables-table input:hover {
+    background-color: var(--bg-app);
+    border-color: var(--border-color);
+}
+
+.variables-table input:focus {
+    outline: none;
+    background-color: #ffffff;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(0, 86, 158, 0.1);
+}
+
+.variables-table .var-key-input {
+    font-family: monospace;
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+.btn-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    border-radius: 4px;
+    transition: var(--transition-fast);
+}
+
+.btn-icon:hover {
+    background-color: #f1f5f9;
+    color: var(--text-primary);
+}
+
+.btn-icon.delete:hover {
+    color: var(--danger-color);
+    background-color: var(--danger-light);
+}
+
+/* Excel dropzone */
+.excel-dropzone {
+    border: 1.5px dashed var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 14px;
+    text-align: center;
+    background-color: #ffffff;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+}
+
+.excel-dropzone:hover {
+    border-color: var(--success-color);
+    background-color: var(--success-light);
+}
+
+.excel-dropzone i {
+    color: var(--success-color);
+}
+
+/* 3. Trình soạn thảo Rich Text Editor (Giả lập Word) */
+.editor-wrapper {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background-color: #ffffff;
+    box-shadow: var(--shadow-sm);
+}
+
+.editor-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 10px;
+    background-color: #f8fafc;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    border-right: 1px solid var(--border-color);
+    padding-right: 6px;
+    margin-right: 2px;
+}
+
+.toolbar-group:last-child {
+    border-right: none;
+    padding-right: 0;
+    margin-right: 0;
+}
+
+.toolbar-btn {
+    height: 30px;
+    min-width: 30px;
+    padding: 0 6px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 13px;
+    transition: var(--transition-fast);
+}
+
+.toolbar-btn:hover {
+    background-color: #e2e8f0;
+    color: var(--text-primary);
+}
+
+.toolbar-btn.active {
+    background-color: var(--primary-light);
+    color: var(--primary-color);
+    border-color: var(--primary-border);
+}
+
+.toolbar-select {
+    height: 30px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0 4px;
+    font-size: 12px;
+    background-color: #ffffff;
+    cursor: pointer;
+    outline: none;
+}
+
+.toolbar-color-picker {
+    width: 30px;
+    height: 30px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    padding: 2px;
+}
+
+/* Vùng soạn thảo chính (contenteditable) */
+.rich-text-editor {
+    min-height: 480px;
+    max-height: 580px;
+    overflow-y: auto;
+    padding: 40px 50px; /* Margins trang giấy */
+    outline: none;
+    font-family: 'Arial', sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #000000;
+    background-color: #ffffff;
+    position: relative;
+    border: none;
+    text-align: left;
+}
+
+.rich-text-editor table.docx-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 12px;
+}
+
+.rich-text-editor table.docx-table td {
+    border: 1px solid #000000;
+    padding: 6px 8px;
+    vertical-align: top;
+}
+
+.rich-text-editor:focus {
+    box-shadow: inset 0 0 0 2px rgba(0, 86, 158, 0.05);
+}
+
+/* Thẻ chèn Mail Merge Tag */
+.mail-merge-tag {
+    color: var(--primary-color) !important;
+    background-color: var(--primary-light) !important;
+    border: 1px dashed var(--primary-border) !important;
+    border-radius: 4px;
+    padding: 2px 6px;
+    margin: 0 2px;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 12.5px !important;
+    font-weight: 600 !important;
+    display: inline-block;
+    cursor: pointer;
+    user-select: all;
+    transition: all var(--transition-fast);
+}
+
+.mail-merge-tag:hover {
+    background-color: #cce3f5 !important;
+    box-shadow: var(--shadow-sm);
+}
+
+/* Menu ngữ cảnh chèn biến Mail Merge */
+.mail-merge-context-menu {
+    position: absolute;
+    z-index: 10000;
+    background-color: #ffffff;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    width: 220px;
+    max-height: 280px;
+    overflow-y: auto;
+    padding: 6px 0;
+    animation: fadeIn var(--transition-fast);
+}
+
+.context-menu-header {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    padding: 6px 12px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 4px;
+    letter-spacing: 0.5px;
+}
+
+.context-menu-item {
+    padding: 8px 12px;
+    font-size: 12.5px;
+    color: var(--text-primary);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: var(--transition-fast);
+}
+
+.context-menu-item:hover {
+    background-color: var(--primary-light);
+    color: var(--primary-color);
+}
+
+.context-menu-item span.var-name {
+    font-family: monospace;
+    font-weight: 600;
+}
+
+.context-menu-item span.var-val {
+    font-size: 11px;
+    color: var(--text-muted);
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 4. Bộ sưu tập ảnh minh chứng (Evidence Images Gallery) */
+.evidence-images-section {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.images-dropzone {
+    border: 2px dashed #cbd5e1;
+    border-radius: var(--radius-md);
+    padding: 20px;
+    text-align: center;
+    background-color: #f8fafc;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+}
+
+.images-dropzone:hover {
+    border-color: var(--primary-color);
+    background-color: var(--primary-light);
+}
+
+.images-gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 12px;
+}
+
+.image-gallery-item {
+    position: relative;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    background-color: #f1f5f9;
+    aspect-ratio: 1;
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition: all var(--transition-normal);
+}
+
+.image-gallery-item:hover {
+    transform: scale(1.03);
+    box-shadow: var(--shadow-md);
+}
+
+.image-gallery-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.image-gallery-item-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.image-gallery-item:hover .image-gallery-item-overlay {
+    opacity: 1;
+}
+
+.image-item-delete-btn {
+    background-color: var(--danger-color);
+    color: #ffffff;
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-fast);
+}
+
+.image-item-delete-btn:hover {
+    background-color: var(--danger-hover);
+    transform: scale(1.1);
+}
+
+/* Lightbox hình ảnh phóng to */
+.image-lightbox {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(15, 23, 42, 0.9);
+    z-index: 20000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.lightbox-content {
+    position: relative;
+    max-width: 90%;
+    max-height: 90%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.lightbox-content img {
+    max-width: 100%;
+    max-height: 80vh;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+}
+
+.lightbox-title {
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: center;
+}
+
+.lightbox-close-btn {
+    position: absolute;
+    top: -40px;
+    right: 0;
+    background: none;
+    border: none;
+    color: #ffffff;
+    font-size: 32px;
+    cursor: pointer;
+    line-height: 1;
+}
+
+/* Bố cục hàng ngang linh hoạt chứa các khối chính */
+.workspace-grid {
+    display: grid;
+    grid-template-columns: 1fr; /* Mặc định xếp dọc trên thiết bị di động */
+    gap: 16px;
+    margin-bottom: 20px;
+    align-items: start;
+}
+
+@media (min-width: 1024px) {
+    .workspace-grid {
+        grid-template-columns: repeat(12, 1fr);
+    }
+    
+    .workspace-grid .card.col-span-3 {
+        grid-column: span 3;
+    }
+    
+    .workspace-grid .card.col-span-4 {
+        grid-column: span 4;
+    }
+    
+    .workspace-grid .card.col-span-6 {
+        grid-column: span 6;
+    }
+    
+    .workspace-grid .card.col-span-12 {
+        grid-column: span 12;
+    }
+}
+
+/* Thanh Tab bar và các mục của Tab */
+.workspace-tabs-container {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 6px;
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 16px;
+}
+
+.workspace-tabs {
+    display: flex;
+    gap: 6px;
+}
+
+.workspace-tab {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border: none;
+    background: none;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    user-select: none;
+}
+
+.workspace-tab:hover {
+    color: var(--primary-color);
+    background-color: var(--primary-light);
+}
+
+.workspace-tab.active {
+    color: #ffffff;
+    background-color: var(--primary-color);
+}
+
+.workspace-tab .tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 10px;
+    background-color: var(--bg-input);
+    color: var(--text-secondary);
+    transition: all var(--transition-fast);
+}
+
+.workspace-tab:hover .tab-badge {
+    background-color: var(--primary-border);
+    color: var(--primary-color);
+}
+
+.workspace-tab.active .tab-badge {
+    background-color: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+}
+
+/* Vô hiệu hóa tính năng toggle cũ bên trong các Card */
+.workspace-tab-content .card-header-toggle {
+    cursor: default !important;
+    pointer-events: none !important;
+}
+
+.workspace-tab-content .card-header-toggle .toggle-icon {
+    display: none !important;
+}
+
+/* ==========================================================================
+   CSS CHO GIAO DIỆN QUẢN LÝ BIẾN THEO NHÓM (MAIL MERGE GROUPS)
+   ========================================================================== */
+
+.variables-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px dashed var(--border-color);
+}
+
+.mail-merge-group-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 20px;
+    overflow: hidden;
+    transition: all var(--transition-normal);
+}
+
+.mail-merge-group-card:hover {
+    box-shadow: var(--shadow-md);
+    border-color: var(--primary-border);
+}
+
+.group-card-header {
+    background-color: #f8fafc;
+    border-bottom: 1px solid var(--border-color);
+    border-top: 3px solid var(--primary-color);
+    padding: 12px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.group-title-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+
+.group-icon {
+    color: var(--primary-color);
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+}
+
+.group-title-text {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--primary-color);
+    border-bottom: 1px solid transparent;
+    padding: 2px 4px;
+    outline: none;
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.group-title-text[contenteditable="true"]:hover {
+    background-color: #f1f5f9;
+    border-bottom-color: var(--border-hover);
+    cursor: text;
+}
+
+.group-title-text[contenteditable="true"]:focus {
+    background-color: #ffffff;
+    border-bottom-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(0, 86, 158, 0.1);
+    color: var(--text-primary);
+}
+
+.group-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-add-field-to-group {
+    height: 30px;
+    font-size: 11.5px;
+    padding: 0 10px;
+    background-color: var(--primary-light);
+    color: var(--primary-color);
+    border-color: var(--primary-border);
+}
+
+.btn-add-field-to-group:hover {
+    background-color: var(--primary-color);
+    color: #ffffff;
+}
+
+.btn-delete-group {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border-radius: var(--radius-sm);
+    color: var(--danger-color);
+    border-color: var(--danger-border);
+    background: #ffffff;
+}
+
+.btn-delete-group:hover {
+    background-color: var(--danger-light);
+    color: var(--danger-color);
+    border-color: var(--danger-color);
+}
+
+.group-card-body {
+    padding: 0;
+}
+
+.group-fields-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.group-fields-table th {
+    text-align: left;
+    padding: 8px 16px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background-color: #f8fafc;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.group-fields-table td {
+    padding: 8px 16px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+}
+
+.group-fields-table tr:last-child td {
+    border-bottom: none;
+}
+
+.field-key-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.field-key-bracket {
+    font-family: monospace;
+    font-weight: bold;
+    color: var(--text-muted);
+    font-size: 13px;
+    user-select: none;
+}
+
+.field-key-input {
+    font-family: monospace;
+    font-weight: 600;
+    color: var(--primary-color);
+    border: 1px solid transparent;
+    padding: 4px 6px;
+    border-radius: var(--radius-sm);
+    width: 100%;
+    background-color: transparent;
+    font-size: 13px;
+}
+
+.field-key-input:hover {
+    background-color: #f1f5f9;
+    border-color: var(--border-hover);
+}
+
+.field-key-input:focus {
+    background-color: #ffffff;
+    border-color: var(--primary-color);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 86, 158, 0.1);
+}
+
+.field-value-input {
+    border: 1px solid var(--border-color);
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    width: 100%;
+    background-color: #ffffff;
+    font-size: 13px;
+    transition: all var(--transition-fast);
+}
+
+.field-value-input:focus {
+    border-color: var(--primary-color);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 86, 158, 0.1);
+}
+
+.btn-delete-field {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+}
+
+.btn-delete-field:hover {
+    color: var(--danger-color);
+    background-color: var(--danger-light);
+    transform: scale(1.05);
+}
+
+/* Kiểu menu ngữ cảnh mail merge nâng cấp */
+.mail-merge-context-menu {
+    position: absolute;
+    background-color: #ffffff;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    z-index: 10000;
+    min-width: 260px;
+    max-width: 320px;
+    max-height: 380px;
+    overflow-y: auto;
+    padding: 6px 0;
+}
+
+.context-menu-header {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 6px 14px;
+    border-bottom: 1px solid var(--border-color);
+    background-color: #f8fafc;
+}
+
+.context-menu-group-title {
+    font-size: 11px;
+    font-weight: bold;
+    color: var(--primary-color);
+    padding: 6px 14px 2px 14px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.context-menu-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+}
+
+.context-menu-item:hover {
+    background-color: var(--primary-light);
+}
+
+.context-menu-item .var-name {
+    font-family: monospace;
+    font-weight: 600;
+    color: var(--primary-color);
+    font-size: 12px;
+}
+
+.context-menu-item .var-val {
+    font-size: 11px;
+    color: var(--text-muted);
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Thẻ chọn hồ sơ gốc mẫu khi chưa có file */
+.btn-copy-template-card:hover {
+    border-color: var(--primary-color) !important;
+    background-color: var(--primary-light) !important;
+    transform: translateY(-1.5px);
+    box-shadow: var(--shadow-md);
+}

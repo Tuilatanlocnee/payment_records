@@ -10,9 +10,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Montserrat:wght@400;500;600;700;800;900&family=Source+Sans+3:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <!-- Nhập thư viện icons Lucide để có các icon phẳng, tinh tế và hiện đại -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="js/lucide.min.js"></script>
+    <!-- Nhập thư viện XLSX để đọc dữ liệu Excel Mail Merge trực tiếp từ Client -->
+    <script src="js/xlsx.full.min.js"></script>
     <!-- Nhập file CSS chính -->
-    <link rel="stylesheet" href="css/styles.css?v=1.0.6">
+    <link rel="stylesheet" href="css/styles.css?v=1.5.5">
 </head>
 
 <body>
@@ -137,6 +139,12 @@
                     <i data-lucide="search" class="search-icon"></i>
                     <input type="text" id="search-profile-input" placeholder="Tìm kiếm hồ sơ...">
                 </div>
+                <!-- Phân nhóm hồ sơ -->
+                <div class="sidebar-tabs" style="display: flex; gap: 4px; overflow-x: auto; padding: 2px;">
+                    <button class="sidebar-tab active" id="tab-edited-profiles" data-type="edited" style="white-space: nowrap; flex: 1; text-align: center; padding: 8px 4px; font-size: 11px;">Hồ sơ thanh toán</button>
+                    <button class="sidebar-tab" id="tab-original-profiles" data-type="original" style="white-space: nowrap; flex: 1; text-align: center; padding: 8px 4px; font-size: 11px;">Hồ sơ gốc</button>
+                    <button class="sidebar-tab" id="tab-mailmerge-profiles" data-type="mailmerge" style="white-space: nowrap; flex: 1; text-align: center; padding: 8px 4px; font-size: 11px;">Mail merge</button>
+                </div>
                 <!-- Danh sách hồ sơ sẽ được render động tại đây -->
                 <ul id="profile-list" class="profile-list">
                     <!-- Nội dung được render từ js/components.js -->
@@ -174,8 +182,22 @@
                 <div class="form-group">
                     <label for="profile-name-input">Tên hồ sơ thanh toán <span class="required">*</span></label>
                     <input type="text" id="profile-name-input" placeholder="Nhập tên hồ sơ thanh toán..." required autocomplete="off">
-                    <small class="form-help">Nên đặt tên gợi nhớ đến kỳ thanh toán hoặc nội dung chứng từ để dễ đồng
-                        bộ.</small>
+                    <small class="form-help">Nên đặt tên gợi nhớ đến kỳ thanh toán hoặc nội dung chứng từ.</small>
+                </div>
+                <div class="form-group">
+                    <label for="profile-type-select">Loại hồ sơ <span class="required">*</span></label>
+                    <select id="profile-type-select" style="width: 100%; height: 38px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); padding: 0 10px; background-color: var(--bg-primary); color: var(--text-primary); cursor: pointer;">
+                        <option value="edited" selected>Hồ sơ thanh toán (Chứa file tài liệu)</option>
+                        <option value="original">Hồ sơ gốc (Mẫu - Chứa file tài liệu mẫu)</option>
+                        <option value="mailmerge">Tệp Mail Merge (Chỉ chứa trường & giá trị)</option>
+                    </select>
+                </div>
+                <div class="form-group" id="template-profile-group">
+                    <label for="profile-template-select">Sao chép tài liệu từ Hồ sơ gốc</label>
+                    <select id="profile-template-select" style="width: 100%; height: 38px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); padding: 0 10px; background-color: var(--bg-primary); color: var(--text-primary); cursor: pointer;">
+                        <option value="">-- Không sao chép (Bắt đầu trống) --</option>
+                    </select>
+                    <small class="form-help">Hồ sơ mới sẽ tự động kế thừa toàn bộ tệp tài liệu mẫu từ Hồ sơ gốc được chọn.</small>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" id="btn-close-modal-cancel">Hủy bỏ</button>
@@ -189,9 +211,9 @@
     <div id="toast-container" class="toast-container"></div>
 
     <!-- Nạp các file script xử lý logic của ứng dụng -->
-    <script src="js/store.js?v=1.0.1"></script>
-    <script src="js/components.js?v=1.0.1"></script>
-    <script src="js/app.js?v=1.0.1"></script>
+    <script src="js/store.js?v=1.5.5"></script>
+    <script src="js/components.js?v=1.5.5"></script>
+    <script src="js/app.js?v=1.5.5"></script>
 </body>
 
 </html>
