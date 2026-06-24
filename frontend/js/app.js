@@ -1975,6 +1975,9 @@ function showMailMergeMenu(x, y, variables) {
 
                 insertElementAtCursor(span);
 
+                // Lưu lại thay đổi tức thì vào Database (để file.currentContent chứa thẻ span mới)
+                await saveEditorContent();
+
                 // Tự động đồng bộ dropdown dòng xem trước sang dòng vừa chọn
                 if (window.AppWorkspaceState) {
                     window.AppWorkspaceState.previewRowIndex = rowNum;
@@ -1984,7 +1987,7 @@ function showMailMergeMenu(x, y, variables) {
                     selectRow.value = rowNum;
                 }
 
-                // Cập nhật lại toàn bộ tài liệu theo dòng preview mới
+                // Cập nhật lại toàn bộ tài liệu theo dòng preview mới (đọc nội dung mới đã lưu ở trên)
                 const activeProfile = AppStore.getActiveProfile();
                 if (activeProfile) {
                     const selectPreviewFile = document.getElementById('select-preview-file');
@@ -1995,8 +1998,6 @@ function showMailMergeMenu(x, y, variables) {
                     }
                 }
 
-                // Lưu lại thay đổi tức thì
-                await saveEditorContent();
                 removeMailMergeContextMenu();
             }
         });
