@@ -4,7 +4,6 @@ const fs = require('fs');
 const path = require('path');
 const AdmZip = require('adm-zip');
 const mongoose = require('mongoose');
-const HTMLtoDOCX = require('html-to-docx');
 require('dotenv').config();
 
 const app = express();
@@ -1392,6 +1391,12 @@ app.get('/api/profiles/:id/export', async (req, res) => {
 
     if (isTableMode) {
       // A. CHẾ ĐỘ XUẤT BẢN HÀNG LOẠT (BATCH GENERATION): Nhân bản tài liệu theo dòng Excel
+      // Lấy danh sách tên biến gốc không có hậu tố _[số]
+      const uniqueVarNames = [...new Set(variables.map(v => {
+        const match = v.name.match(rowSuffixRegex);
+        return match ? match[1] : v.name;
+      }))];
+
       for (let r = 1; r <= maxRowIndex; r++) {
         // Tìm biến định danh thư mục cho dòng r (Ưu tiên MA_HO_SO hoặc TEN_DON_VI)
         const rowVars = variables.filter(v => v.name.endsWith(`_${r}`));
@@ -1423,57 +1428,63 @@ app.get('/api/profiles/:id/export', async (req, res) => {
           const exportName = `${baseName}_hoanthien${exportExt}`;
           const zipFilePath = `${folderName}/${exportName}`;
 
-          // Thực hiện thay thế biến tương ứng dòng r trước khi chuyển đổi
-          const replacedHtml = replaceVariablesForExport(file.currentContent || "", variables, r);
+          const isDocx = extLower === '.docx';
+          const isDoc = extLower === '.doc';
 
-          if (extLower === '.docx' || extLower === '.doc') {
+          if ((isDocx || isDoc) && file.originalBase64) {
+            // Khôi phục logic thay thế trực tiếp vào XML của file Word gốc
             try {
-              const cleanHtml = replacedHtml
-                .replace(/\[IMAGE:data:([^;]+);base64,([^\]]+)\]/g, (match, mime, base64) => {
-                  let width = "100%";
-                  let height = "auto";
-                  const pipeIdx = base64.indexOf('|');
-                  let imgBase64 = base64;
-                  if (pipeIdx !== -1) {
-                    imgBase64 = base64.substring(0, pipeIdx);
-                    const styles = base64.substring(pipeIdx + 1);
-                    const wMatch = styles.match(/width:\s*([^;]+)/);
-                    const hMatch = styles.match(/height:\s*([^;]+)/);
-                    if (wMatch) width = wMatch[1];
-                    if (hMatch) height = hMatch[1];
-                  }
-                  return `<img src="data:${mime};base64,${imgBase64}" style="width: ${width}; height: ${height}; display: block; margin: 10px auto;" />`;
+              const zipBuffer = Buffer.from(file.originalBase64, 'base64');
+              const docxZip = new AdmZip(zipBuffer);
+              let documentXml = docxZip.readAsText('word/document.xml');
+              if (documentXml) {
+                // Tạo replacements động cho dòng r này
+                const replacementsForThisFile = [];
+                
+                // 1. Thêm các replacements tĩnh từ profile.replacements
+                if (profile.replacements && profile.replacements.length > 0) {
+                  profile.replacements.forEach(rep => {
+                    replacementsForThisFile.push({
+                      findText: rep.findText,
+                      replaceText: rep.replaceText
+                    });
+                  });
+                }
+
+                // 2. Thêm các biến Mail Merge động được map theo dòng r
+                uniqueVarNames.forEach(varName => {
+                  const targetVarName = `${varName}_${r}`;
+                  const variableObj = variables.find(v => v.name === targetVarName) || variables.find(v => v.name === varName);
+                  const value = variableObj ? (variableObj.value || "") : "";
+                  
+                  replacementsForThisFile.push({
+                    findText: `{{${varName}}}`,
+                    replaceText: value
+                  });
+                  replacementsForThisFile.push({
+                    findText: `{{ ${varName} }}`,
+                    replaceText: value
+                  });
                 });
 
-              const htmlString = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    body { font-family: 'Arial', sans-serif; font-size: 14px; line-height: 1.5; color: #000000; }
-    p { margin: 0 0 8px 0; }
-    table { border-collapse: collapse; width: 100%; margin-bottom: 12px; }
-    table, th, td { border: 1px solid #000000; }
-    td, th { padding: 6px 8px; vertical-align: top; }
-    .mail-merge-tag { color: #000000; background-color: transparent; font-weight: normal; text-decoration: none; }
-  </style>
-</head>
-<body>
-  ${cleanHtml}
-</body>
-</html>`;
-
-              const docxBuffer = await HTMLtoDOCX(htmlString, null, {
-                orientation: 'portrait',
-                margins: { top: 1440, right: 1440, bottom: 1440, left: 1440 }
-              });
-              zip.addFile(zipFilePath, docxBuffer);
+                documentXml = replaceTextInDocxXml(documentXml, replacementsForThisFile);
+                docxZip.updateFile('word/document.xml', Buffer.from(documentXml, 'utf-8'));
+                zip.addFile(zipFilePath, docxZip.toBuffer());
+              } else {
+                // Fallback tạo file docx tối giản nếu không đọc được xml
+                const replacedHtml = replaceVariablesForExport(file.currentContent || "", variables, r);
+                const textOnly = replacedHtml.replace(/<[^>]*>/g, '');
+                zip.addFile(zipFilePath, createMinimalDocx(textOnly));
+              }
             } catch (err) {
-              console.error(`Lỗi khi chuyển đổi HTML sang DOCX cho file ${file.name} dòng ${r}:`, err);
+              console.error(`Lỗi khi xử lý đồng bộ tệp tin Word ${file.name} dòng ${r}:`, err);
+              const replacedHtml = replaceVariablesForExport(file.currentContent || "", variables, r);
               const textOnly = replacedHtml.replace(/<[^>]*>/g, '');
               zip.addFile(zipFilePath, createMinimalDocx(textOnly));
             }
           } else {
+            // Tệp văn bản thuần (.txt) hoặc các tệp tin khác
+            const replacedHtml = replaceVariablesForExport(file.currentContent || "", variables, r);
             const textOnly = replacedHtml
               .replace(/<br\s*\/?>/gi, '\n')
               .replace(/<\/div>/gi, '\n')
@@ -1500,54 +1511,52 @@ app.get('/api/profiles/:id/export', async (req, res) => {
         const isDocx = extLower === '.docx';
         const isDoc = extLower === '.doc';
         
-        if (isDocx || isDoc) {
+        if ((isDocx || isDoc) && file.originalBase64) {
+          // Khôi phục logic thay thế trực tiếp vào XML của file Word gốc
           try {
-            const cleanHtml = (file.currentContent || "")
-              .replace(/\[IMAGE:data:([^;]+);base64,([^\]]+)\]/g, (match, mime, base64) => {
-                let width = "100%";
-                let height = "auto";
-                const pipeIdx = base64.indexOf('|');
-                let imgBase64 = base64;
-                if (pipeIdx !== -1) {
-                  imgBase64 = base64.substring(0, pipeIdx);
-                  const styles = base64.substring(pipeIdx + 1);
-                  const wMatch = styles.match(/width:\s*([^;]+)/);
-                  const hMatch = styles.match(/height:\s*([^;]+)/);
-                  if (wMatch) width = wMatch[1];
-                  if (hMatch) height = hMatch[1];
-                }
-                return `<img src="data:${mime};base64,${imgBase64}" style="width: ${width}; height: ${height}; display: block; margin: 10px auto;" />`;
+            const zipBuffer = Buffer.from(file.originalBase64, 'base64');
+            const docxZip = new AdmZip(zipBuffer);
+            let documentXml = docxZip.readAsText('word/document.xml');
+            if (documentXml) {
+              const replacementsForThisFile = [];
+              
+              // 1. Thêm các replacements tĩnh từ profile.replacements
+              if (profile.replacements && profile.replacements.length > 0) {
+                profile.replacements.forEach(rep => {
+                  replacementsForThisFile.push({
+                    findText: rep.findText,
+                    replaceText: rep.replaceText
+                  });
+                });
+              }
+
+              // 2. Thêm các biến Mail Merge động
+              variables.forEach(v => {
+                replacementsForThisFile.push({
+                  findText: `{{${v.name}}}`,
+                  replaceText: v.value || ""
+                });
+                replacementsForThisFile.push({
+                  findText: `{{ ${v.name} }}`,
+                  replaceText: v.value || ""
+                });
               });
 
-            const htmlString = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    body { font-family: 'Arial', sans-serif; font-size: 14px; line-height: 1.5; color: #000000; }
-    p { margin: 0 0 8px 0; }
-    table { border-collapse: collapse; width: 100%; margin-bottom: 12px; }
-    table, th, td { border: 1px solid #000000; }
-    td, th { padding: 6px 8px; vertical-align: top; }
-    .mail-merge-tag { color: #000000; background-color: transparent; font-weight: normal; text-decoration: none; }
-  </style>
-</head>
-<body>
-  ${cleanHtml}
-</body>
-</html>`;
-
-            const docxBuffer = await HTMLtoDOCX(htmlString, null, {
-              orientation: 'portrait',
-              margins: { top: 1440, right: 1440, bottom: 1440, left: 1440 }
-            });
-            zip.addFile(exportName, docxBuffer);
+              documentXml = replaceTextInDocxXml(documentXml, replacementsForThisFile);
+              docxZip.updateFile('word/document.xml', Buffer.from(documentXml, 'utf-8'));
+              zip.addFile(exportName, docxZip.toBuffer());
+            } else {
+              // Fallback tạo file docx tối giản nếu không đọc được xml
+              const textOnly = (file.currentContent || "").replace(/<[^>]*>/g, '');
+              zip.addFile(exportName, createMinimalDocx(textOnly));
+            }
           } catch (err) {
-            console.error(`Lỗi khi chuyển đổi HTML sang DOCX cho file ${file.name}:`, err);
+            console.error(`Lỗi khi xử lý đồng bộ tệp tin Word ${file.name}:`, err);
             const textOnly = (file.currentContent || "").replace(/<[^>]*>/g, '');
             zip.addFile(exportName, createMinimalDocx(textOnly));
           }
         } else {
+          // Tệp văn bản thuần (.txt) || các tệp tin khác
           const textOnly = (file.currentContent || "")
             .replace(/<br\s*\/?>/gi, '\n')
             .replace(/<\/div>/gi, '\n')
