@@ -8,7 +8,7 @@ let currentSearchQuery = "";
 
 // Trạng thái đóng/mở của các phân vùng giao diện
 window.AppWorkspaceState = {
-    activeTab: 'variables', // Mặc định hiển thị tab Biến Mail Merge khi vừa mở hồ sơ
+    activeTab: 'preview', // Mặc định hiển thị tab Tài liệu khi vừa mở hồ sơ
     previewRowIndex: 1      // Dòng bản ghi xem trước mặc định
 };
 
@@ -271,7 +271,7 @@ function initApp() {
                 
                 // Reset trạng thái đóng/mở khi chuyển đổi giữa các hồ sơ
                 if (window.AppWorkspaceState) {
-                    window.AppWorkspaceState.activeTab = 'variables';
+                    window.AppWorkspaceState.activeTab = 'preview';
                 }
 
                 await AppStore.setActiveProfile(profileId);

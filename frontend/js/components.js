@@ -280,7 +280,7 @@ window.Components = {
                 const isEdited = !isOriginal && !isMailMerge;
                 const hasFiles = profile.files && profile.files.length > 0;
                 
-                const activeTab = (window.AppWorkspaceState && window.AppWorkspaceState.activeTab) || 'variables';
+                const activeTab = (window.AppWorkspaceState && window.AppWorkspaceState.activeTab) || 'preview';
 
                 const isVariablesActive = activeTab === 'variables';
                 const isSearchActive = activeTab === 'search';

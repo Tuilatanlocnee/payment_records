@@ -3,6 +3,14 @@
 
 <head>
     <meta charset="UTF-8">
+    <script>
+        window.onerror = function(message, source, lineno, colno, error) {
+            alert("LỖI RUNTIME JS: " + message + "\nTại: " + source + " (Dòng: " + lineno + ", Cột: " + colno + ")");
+        };
+        window.addEventListener('unhandledrejection', function(event) {
+            alert("LỖI PROMISE CHƯA XỬ LÝ: " + event.reason);
+        });
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hệ thống Tự động hóa & Đồng bộ Hồ sơ Thanh toán - MobiFone Cần Thơ</title>
     <!-- Nhập Font chữ văn phòng Inter và Font thương hiệu Montserrat từ Google Fonts -->
