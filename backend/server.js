@@ -887,6 +887,108 @@ app.put('/api/profiles/:id/variables', async (req, res) => {
       }
     }
 
+    // Phát hiện đổi tên biến để cập nhật tags trong toàn bộ file liên quan
+    const incomingVars = variables || [];
+    const oldVars = targetProfile.variables || [];
+    const renameMap = new Map();
+
+    const oldVarsMap = new Map();
+    oldVars.forEach(v => {
+      if (v._id) {
+        oldVarsMap.set(v._id.toString(), v);
+      }
+    });
+
+    incomingVars.forEach(newVar => {
+      const idStr = newVar._id || newVar.id;
+      if (idStr && oldVarsMap.has(idStr.toString())) {
+        const oldVar = oldVarsMap.get(idStr.toString());
+        if (oldVar.name !== newVar.name) {
+          renameMap.set(oldVar.name, newVar.name);
+        }
+      }
+    });
+
+    if (renameMap.size > 0) {
+      // Tìm tất cả hồ sơ kết nối
+      const connectedProfiles = await Profile.find({
+        $or: [
+          { _id: targetProfileId },
+          { mailMergeId: targetProfileId }
+        ]
+      });
+      const connectedProfileIds = connectedProfiles.map(cp => cp._id);
+      const filesToUpdate = await File.find({ profileId: { $in: connectedProfileIds } });
+
+      for (const file of filesToUpdate) {
+        let fileUpdated = false;
+
+        // Đổi tên biến trong XML của tệp Word gốc (.docx) nếu có
+        if (file.originalBase64) {
+          try {
+            const zipBuffer = Buffer.from(file.originalBase64, 'base64');
+            const docxZip = new AdmZip(zipBuffer);
+            let documentXml = docxZip.readAsText('word/document.xml');
+            if (documentXml) {
+              let xmlUpdated = false;
+              for (const [oldName, newName] of renameMap.entries()) {
+                const oldXmlPattern1 = `{{${oldName}}}`;
+                const oldXmlPattern2 = `{{ ${oldName} }}`;
+                
+                if (documentXml.includes(oldXmlPattern1) || documentXml.includes(oldXmlPattern2) || documentXml.includes(oldName)) {
+                  documentXml = replaceInParagraphs(documentXml, oldXmlPattern1, `{{${newName}}}`);
+                  documentXml = replaceInParagraphs(documentXml, oldXmlPattern2, `{{ ${newName} }}`);
+                  xmlUpdated = true;
+                }
+              }
+              if (xmlUpdated) {
+                docxZip.updateFile('word/document.xml', Buffer.from(documentXml, 'utf-8'));
+                file.originalBase64 = docxZip.toBuffer().toString('base64');
+                fileUpdated = true;
+              }
+            }
+          } catch (err) {
+            console.error("Lỗi khi cập nhật file Word binary gốc khi đổi tên biến:", err);
+          }
+        }
+
+        // Đổi tên trong HTML content (currentContent và originalContent)
+        let currentContent = file.currentContent || "";
+        let originalContent = file.originalContent || "";
+        let contentUpdated = false;
+
+        for (const [oldName, newName] of renameMap.entries()) {
+          const dataVarRegex = new RegExp(`data-variable="${oldName}"`, 'g');
+          const placeholderRegex1 = new RegExp(`{{${oldName}}}`, 'g');
+          const placeholderRegex2 = new RegExp(`{{ ${oldName} }}`, 'g');
+
+          if (dataVarRegex.test(currentContent) || placeholderRegex1.test(currentContent) || placeholderRegex2.test(currentContent)) {
+            currentContent = currentContent.replace(dataVarRegex, `data-variable="${newName}"`);
+            currentContent = currentContent.replace(placeholderRegex1, `{{${newName}}}`);
+            currentContent = currentContent.replace(placeholderRegex2, `{{ ${newName} }}`);
+            contentUpdated = true;
+          }
+
+          if (dataVarRegex.test(originalContent) || placeholderRegex1.test(originalContent) || placeholderRegex2.test(originalContent)) {
+            originalContent = originalContent.replace(dataVarRegex, `data-variable="${newName}"`);
+            originalContent = originalContent.replace(placeholderRegex1, `{{${newName}}}`);
+            originalContent = originalContent.replace(placeholderRegex2, `{{ ${newName} }}`);
+            contentUpdated = true;
+          }
+        }
+
+        if (contentUpdated) {
+          file.currentContent = currentContent;
+          file.originalContent = originalContent;
+          fileUpdated = true;
+        }
+
+        if (fileUpdated) {
+          await file.save();
+        }
+      }
+    }
+
     targetProfile.variables = variables || [];
     await targetProfile.save();
 
