@@ -12,50 +12,34 @@ window.AppWorkspaceState = {
     previewRowIndex: 1      // Dòng bản ghi xem trước mặc định
 };
 
-const initLanding = () => {
-    // Khởi tạo các icons cho Landing Page ngay khi tải trang
+const startAppDirectly = async () => {
+    // Khởi tạo các icons ngay khi tải trang
     if (window.safeCreateIcons) {
         window.safeCreateIcons();
     }
 
-    // Đăng ký sự kiện nút "Bắt đầu làm việc ngay" trên Landing Page và nút "Bắt đầu" trên Header
-    const handleStartApp = async () => {
-        const landingPage = document.getElementById('landing-page');
-        const appWorkspace = document.getElementById('app-workspace');
-        const loadingOverlay = document.getElementById('app-loading-overlay');
-        
-        // 1. Chuyển đổi giao diện sang Workspace và hiển thị màn hình đánh thức server
-        if (landingPage) landingPage.classList.add('hidden');
-        if (appWorkspace) appWorkspace.classList.remove('hidden');
-        if (loadingOverlay) loadingOverlay.classList.remove('hidden');
-        
-        // 2. Gọi API đánh thức server và tải dữ liệu
-        try {
-            await AppStore.init();
-        } catch (e) {
-            showToast("Lỗi kết nối Backend API. Vui lòng đảm bảo Backend đã chạy.", "danger");
-        } finally {
-            if (loadingOverlay) loadingOverlay.classList.add('hidden');
-        }
-        
-        // 3. Khởi động Workspace chính (bind events)
-        initApp();
-    };
-
-    const btnStart = document.getElementById('btn-start-app');
-    if (btnStart) {
-        btnStart.addEventListener('click', handleStartApp);
+    const loadingOverlay = document.getElementById('app-loading-overlay');
+    
+    // 1. Hiển thị màn hình đánh thức server
+    if (loadingOverlay) loadingOverlay.classList.remove('hidden');
+    
+    // 2. Gọi API đánh thức server và tải dữ liệu
+    try {
+        await AppStore.init();
+    } catch (e) {
+        showToast("Lỗi kết nối Backend API. Vui lòng đảm bảo Backend đã chạy.", "danger");
+    } finally {
+        if (loadingOverlay) loadingOverlay.classList.add('hidden');
     }
-    const btnStartNav = document.getElementById('btn-start-nav');
-    if (btnStartNav) {
-        btnStartNav.addEventListener('click', handleStartApp);
-    }
+    
+    // 3. Khởi động Workspace chính (gắn các sự kiện)
+    initApp();
 };
 
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initLanding);
+    document.addEventListener('DOMContentLoaded', startAppDirectly);
 } else {
-    initLanding();
+    startAppDirectly();
 }
 
 /**

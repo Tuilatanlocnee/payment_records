@@ -18,85 +18,7 @@
 </head>
 
 <body>
-    <!-- 1. Màn hình Landing Page giới thiệu (Mặc định hiển thị) -->
-    <div id="landing-page" class="landing-page-container">
-
-        <!-- Header sang trọng của Landing Page -->
-        <header class="landing-header">
-            <div class="header-left">
-                <div class="logo-container">
-                    <img src="MobiFone_logo.svg.png" alt="MobiFone Logo" class="logo-img">
-                </div>
-                <div class="header-divider"></div>
-                <h1 class="header-title">HỆ THỐNG ĐỒNG BỘ & TỰ ĐỘNG HÓA HỒ SƠ THANH TOÁN</h1>
-            </div>
-            <div class="header-right">
-                <button class="btn btn-primary" id="btn-start-nav">
-                    <i data-lucide="play-circle"></i>
-                    <span class="btn-text">BẮT ĐẦU NGAY</span>
-                </button>
-            </div>
-        </header>
-
-        <!-- Landing Hero -->
-        <section class="landing-hero">
-            <span class="hero-badge">Ứng dụng Tự động hóa Văn phòng</span>
-            <h1 class="hero-title">Đồng bộ & Chuẩn hóa<br><span>Hồ sơ Thanh toán <span class="brand-mobifone"><span class="mobi-blue">Mobi</span><span class="fone-red">Fone</span></span></span></h1>
-            <p class="hero-subtitle">
-                Giải pháp hỗ trợ trích xuất, tìm kiếm lỗi và thay thế nội dung hàng loạt trên các tệp Word (.docx) và văn bản (.txt) phục vụ công tác thanh toán chứng từ nhanh chóng, chính xác.
-            </p>
-            <button class="btn btn-primary btn-start" id="btn-start-app">
-                <i data-lucide="play-circle" style="width: 20px; height: 20px;"></i>
-                Bắt đầu làm việc ngay
-            </button>
-        </section>
-
-        <!-- Landing Features -->
-        <section class="features-section">
-            <h2 class="section-title">Tính năng Cốt lõi của Hệ thống</h2>
-            <div class="features-grid">
-                <!-- Card 1 -->
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i data-lucide="file-signature"></i>
-                    </div>
-                    <h4>Chuẩn hóa & Trích xuất</h4>
-                    <p>Tự động giải nén tệp Word (.docx), trích xuất nội dung văn bản thuần và cấu trúc bảng biểu trực tiếp ngay tại Server.</p>
-                </div>
-                <!-- Card 2 -->
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i data-lucide="search"></i>
-                    </div>
-                    <h4>Tìm kiếm & Thay thế</h4>
-                    <p>Phát hiện và thay thế đồng bộ hàng loạt các từ khóa (MST, địa chỉ, tài khoản thụ hưởng) trên tất cả tài liệu cùng lúc.</p>
-                </div>
-                <!-- Card 3 -->
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i data-lucide="eye"></i>
-                    </div>
-                    <h4>So sánh Split Preview</h4>
-                    <p>Giao diện so sánh song song trực quan giữa văn bản gốc và văn bản đã sửa lỗi, giúp rà soát nội dung trước khi xuất bản.</p>
-                </div>
-                <!-- Card 4 -->
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i data-lucide="folder-archive"></i>
-                    </div>
-                    <h4>Đóng gói ZIP nhanh</h4>
-                    <p>Xuất bản toàn bộ hồ sơ đã hoàn thiện thành tệp nén ZIP chứa các file Word mới đã thay thế nội dung, bảo toàn 100% định dạng gốc.</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- Landing Footer -->
-        <footer class="landing-footer">
-            &copy; 2026 Bản quyền thuộc về <span class="brand-mobifone"><span class="mobi-blue">Mobi</span><span class="fone-red">Fone</span></span> Cần Thơ. Phát triển trên nền tảng Web SPA tốc độ cao.
-        </footer>
-    </div>
-
-    <!-- 2. Màn hình Loading khởi động Cloud Server khi cold start -->
+    <!-- 1. Màn hình Loading khởi động Cloud Server khi cold start -->
     <div id="app-loading-overlay" class="modal hidden" style="background-color: rgba(255, 255, 255, 0.95); z-index: 9999; backdrop-filter: blur(6px);">
         <div style="text-align: center; display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 20px;">
             <span class="loading-spinner" style="display: inline-block; width: 48px; height: 48px; border: 4px solid rgba(0, 86, 158, 0.1); border-radius: 50%; border-top-color: var(--primary-color); animation: spin 1s linear infinite;"></span>
@@ -107,8 +29,8 @@
         </div>
     </div>
 
-    <!-- 3. Khu vực làm việc chính (Workspace) (Mặc định ẩn để tối ưu tốc độ load đầu tiên) -->
-    <div id="app-workspace" class="hidden" style="display: flex; flex-direction: column; height: 100vh;">
+    <!-- 2. Khu vực làm việc chính (Workspace) -->
+    <div id="app-workspace" style="display: flex; flex-direction: column; height: 100vh;">
         <!-- Header của ứng dụng -->
         <header class="app-header">
             <div class="header-left">
