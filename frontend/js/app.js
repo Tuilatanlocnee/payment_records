@@ -46,8 +46,36 @@ if (document.readyState === 'loading') {
  * Khởi tạo các sự kiện và hiển thị ban đầu
  */
 function initApp() {
-    // Render danh sách hồ sơ ban đầu
+    // Xác định tab mặc định có chứa hồ sơ để kích hoạt ban đầu
+    const profiles = AppStore.getProfiles();
+    let defaultTab = 'edited';
+    
+    if (profiles.length > 0) {
+        const hasEdited = profiles.some(p => (p.type || 'edited') === 'edited');
+        const hasOriginal = profiles.some(p => p.type === 'original');
+        const hasMailMerge = profiles.some(p => p.type === 'mailmerge');
+        
+        if (hasEdited) {
+            defaultTab = 'edited';
+        } else if (hasOriginal) {
+            defaultTab = 'original';
+        } else if (hasMailMerge) {
+            defaultTab = 'mailmerge';
+        }
+    }
+    
+    // Lưu và kích hoạt tab mặc định này
+    AppStore.state.activeTab = defaultTab;
+    const activeTabBtn = document.querySelector(`.sidebar-tab[data-type="${defaultTab}"]`);
+    if (activeTabBtn) {
+        activeTabBtn.classList.add('active');
+    }
+
+    // Render danh sách hồ sơ ban đầu của tab active
     renderProfiles();
+    
+    // Tự động hiển thị chi tiết hồ sơ active (nếu có)
+    renderActiveProfile();
 
     // Sự kiện click vào logo MobiFone để quay về trang chủ (chưa chọn hồ sơ nào)
     const logoContainer = document.querySelector('.logo-container');
@@ -57,6 +85,15 @@ function initApp() {
             try {
                 currentSearchQuery = ""; // Reset từ khóa tìm kiếm
                 await AppStore.setActiveProfile(null);
+                
+                // Tắt các tab active và đóng dropdown
+                document.querySelectorAll('.sidebar-tab').forEach(t => {
+                    t.classList.remove('active');
+                    t.classList.remove('open');
+                });
+                const dropdownMenu = document.getElementById('profile-dropdown-menu');
+                if (dropdownMenu) dropdownMenu.classList.add('hidden');
+
                 renderProfiles();
                 renderActiveProfile();
 
@@ -71,12 +108,16 @@ function initApp() {
         });
     }
 
-    // Sự kiện click tạo mới trực tiếp từ Empty State
+    // Sự kiện click tạo mới trực tiếp hoặc xem danh sách từ Empty State
     const emptyState = document.getElementById('empty-state');
     if (emptyState) {
         emptyState.addEventListener('click', (e) => {
             const btnDirect = e.target.closest('.btn-direct-create');
+            const btnOpenDropdown = e.target.closest('.btn-open-dropdown-direct');
+            
             if (btnDirect) {
+                e.preventDefault();
+                e.stopPropagation();
                 const id = btnDirect.id;
                 const btnCreateProfile = document.getElementById('btn-create-profile');
                 if (btnCreateProfile) {
@@ -97,23 +138,69 @@ function initApp() {
                         typeSelect.dispatchEvent(new Event('change'));
                     }
                 }
+            } else if (btnOpenDropdown) {
+                e.preventDefault();
+                e.stopPropagation(); // NGĂN NỔI BỌT LÊN DOCUMENT!
+                
+                // Mở dropdown chọn hồ sơ của tab đang active
+                const activeTab = document.querySelector('.sidebar-tab.active');
+                if (activeTab) {
+                    activeTab.click(); // Trigger click tab để mở dropdown
+                }
             }
         });
     }
 
-    // Đăng ký sự kiện chuyển Tab phân loại hồ sơ ở Sidebar
+    // Đăng ký sự kiện click tab phân loại mở dropdown
+    const handleTabSwitch = async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const tabBtn = e.target.closest('.sidebar-tab');
+        if (!tabBtn) return;
+        
+        const type = tabBtn.getAttribute('data-type');
+        
+        // Reset các tab khác
+        document.querySelectorAll('.sidebar-tab').forEach(t => {
+            if (t !== tabBtn) {
+                t.classList.remove('active');
+                t.classList.remove('open');
+            }
+        });
+        
+        const dropdownMenu = document.getElementById('profile-dropdown-menu');
+        if (dropdownMenu) {
+            // Nếu tab đã active và dropdown đang mở -> đóng dropdown
+            if (tabBtn.classList.contains('active') && !dropdownMenu.classList.contains('hidden')) {
+                dropdownMenu.classList.add('hidden');
+                tabBtn.classList.remove('open');
+            } else {
+                // Ngược lại -> mở dropdown định vị bên dưới tab
+                tabBtn.classList.add('active');
+                tabBtn.classList.add('open');
+                
+                // Cập nhật local state của AppStore về active tab
+                AppStore.state.activeTab = type;
+                
+                // Render danh sách hồ sơ tương ứng
+                renderProfiles();
+                
+                // Định vị dropdown ngay dưới tab click
+                const rect = tabBtn.getBoundingClientRect();
+                const parentRect = document.querySelector('.header-center-selector').getBoundingClientRect();
+                if (parentRect) {
+                    dropdownMenu.style.left = `${rect.left - parentRect.left}px`;
+                }
+                dropdownMenu.classList.remove('hidden');
+            }
+        }
+    };
+
     const tabEdited = document.getElementById('tab-edited-profiles');
     const tabOriginal = document.getElementById('tab-original-profiles');
     const tabMailMerge = document.getElementById('tab-mailmerge-profiles');
     
-    const handleTabSwitch = async (e) => {
-        document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
-        e.target.classList.add('active');
-        await AppStore.setActiveProfile(null);
-        renderProfiles();
-        renderActiveProfile();
-    };
-
     if (tabEdited) tabEdited.addEventListener('click', handleTabSwitch);
     if (tabOriginal) tabOriginal.addEventListener('click', handleTabSwitch);
     if (tabMailMerge) tabMailMerge.addEventListener('click', handleTabSwitch);
@@ -282,6 +369,11 @@ function initApp() {
                 profileItem.classList.add('active');
 
                 renderActiveProfile();
+
+                // Tự động đóng dropdown chọn hồ sơ
+                const dropdownMenu = document.getElementById('profile-dropdown-menu');
+                if (dropdownMenu) dropdownMenu.classList.add('hidden');
+                document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('open'));
             }
         });
     }
@@ -1485,6 +1577,28 @@ function renderProfiles() {
  */
 function renderActiveProfile() {
     const activeProfile = AppStore.getActiveProfile();
+    
+    // Đồng bộ chỉ báo hồ sơ đang chọn lên Header
+    const indicatorEl = document.getElementById('active-profile-indicator');
+    const nameEl = document.getElementById('active-profile-name');
+    if (indicatorEl && nameEl) {
+        if (activeProfile) {
+            nameEl.textContent = activeProfile.name;
+            indicatorEl.classList.remove('hidden');
+            
+            // Đánh dấu active đúng tab phân loại của hồ sơ đó
+            document.querySelectorAll('.sidebar-tab').forEach(t => {
+                if (t.getAttribute('data-type') === (activeProfile.type || 'edited')) {
+                    t.classList.add('active');
+                } else {
+                    t.classList.remove('active');
+                }
+            });
+        } else {
+            indicatorEl.classList.add('hidden');
+        }
+    }
+    
     Components.renderProfileDetail(activeProfile, currentSearchQuery);
 
     // Thêm hoặc xóa class has-active-profile để phục vụ responsive trên mobile

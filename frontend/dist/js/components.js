@@ -119,6 +119,7 @@ window.Components = {
     renderProfileList(profiles, activeId) {
         const container = document.getElementById('profile-list');
         const countBadge = document.getElementById('profile-count');
+        const dropdownCountBadge = document.getElementById('dropdown-profile-count');
         
         if (!container) return;
 
@@ -126,14 +127,15 @@ window.Components = {
         const tabType = activeTab ? activeTab.getAttribute('data-type') : 'edited';
         const tabFiltered = profiles.filter(p => (p.type || 'edited') === tabType);
 
-        // Cập nhật số lượng hồ sơ
-        countBadge.textContent = `${tabFiltered.length} hồ sơ`;
+        // Cập nhật số lượng hồ sơ đồng bộ cho cả hai nhãn
+        if (countBadge) countBadge.textContent = `${tabFiltered.length} hồ sơ`;
+        if (dropdownCountBadge) dropdownCountBadge.textContent = `${tabFiltered.length} hồ sơ`;
 
         if (tabFiltered.length === 0) {
             container.innerHTML = `
-                <div style="text-align: center; padding: 40px 10px; color: var(--text-secondary); font-size: 13px;">
-                    <i data-lucide="info" style="margin: 0 auto 10px auto; display: block; opacity: 0.5;"></i>
-                    Chưa có hồ sơ nào thuộc nhóm này.
+                <div style="text-align: center; padding: 30px 10px; color: var(--text-secondary); font-size: 13px;">
+                    <i data-lucide="info" style="margin: 0 auto 8px auto; display: block; opacity: 0.5; width: 20px; height: 20px;"></i>
+                    Không có hồ sơ nào thuộc nhóm này.
                 </div>
             `;
             safeCreateIcons();
@@ -180,23 +182,31 @@ window.Components = {
             const descEl = emptyState.querySelector('p');
             
             // Xóa nút cũ nếu có để tránh trùng lặp
-            const oldBtn = emptyState.querySelector('.btn-direct-create');
-            if (oldBtn) oldBtn.remove();
+            emptyState.querySelectorAll('.btn-direct-create, .btn-open-dropdown-direct').forEach(el => el.remove());
             
             if (titleEl && descEl) {
                 let btnHtml = '';
                 if (tabType === 'mailmerge') {
                     titleEl.textContent = 'Chưa chọn Mail merge';
-                    descEl.textContent = 'Hãy chọn một mục Mail merge từ danh sách bên trái hoặc tạo mới một tệp Mail merge để bắt đầu.';
-                    btnHtml = `<button class="btn btn-primary btn-direct-create" id="btn-create-mailmerge-direct" style="margin-top: 16px; display: inline-flex; align-items: center; gap: 6px;"><i data-lucide="plus-circle" style="width: 16px; height: 16px;"></i> Tạo Tệp Mail Merge Mới</button>`;
+                    descEl.textContent = 'Hãy chọn một mục Mail merge từ danh mục phía trên Header hoặc tạo mới một tệp Mail merge để bắt đầu.';
+                    btnHtml = `
+                        <button class="btn btn-primary btn-direct-create" id="btn-create-mailmerge-direct" style="margin-top: 16px; display: inline-flex; align-items: center; gap: 6px;"><i data-lucide="plus-circle" style="width: 16px; height: 16px;"></i> Tạo Tệp Mail Merge Mới</button>
+                        <button class="btn btn-secondary btn-open-dropdown-direct" style="margin-top: 16px; margin-left: 8px; display: inline-flex; align-items: center; gap: 6px;"><i data-lucide="menu" style="width: 16px; height: 16px;"></i> Xem danh sách Mail merge</button>
+                    `;
                 } else if (tabType === 'original') {
                     titleEl.textContent = 'Chưa chọn hồ sơ gốc mẫu';
-                    descEl.textContent = 'Hãy chọn một hồ sơ gốc mẫu từ danh sách bên trái hoặc tạo mới một hồ sơ gốc để tải tài liệu mẫu.';
-                    btnHtml = `<button class="btn btn-primary btn-direct-create" id="btn-create-original-direct" style="margin-top: 16px; display: inline-flex; align-items: center; gap: 6px;"><i data-lucide="plus-circle" style="width: 16px; height: 16px;"></i> Tạo Hồ Sơ Gốc Mẫu Mới</button>`;
+                    descEl.textContent = 'Hãy chọn một hồ sơ gốc mẫu từ danh mục phía trên Header hoặc tạo mới một hồ sơ gốc để tải tài liệu mẫu.';
+                    btnHtml = `
+                        <button class="btn btn-primary btn-direct-create" id="btn-create-original-direct" style="margin-top: 16px; display: inline-flex; align-items: center; gap: 6px;"><i data-lucide="plus-circle" style="width: 16px; height: 16px;"></i> Tạo Hồ Sơ Gốc Mẫu Mới</button>
+                        <button class="btn btn-secondary btn-open-dropdown-direct" style="margin-top: 16px; margin-left: 8px; display: inline-flex; align-items: center; gap: 6px;"><i data-lucide="menu" style="width: 16px; height: 16px;"></i> Xem danh sách Hồ sơ gốc</button>
+                    `;
                 } else {
                     titleEl.textContent = 'Chưa chọn hồ sơ thanh toán';
-                    descEl.textContent = 'Hãy chọn một hồ sơ từ danh sách bên trái hoặc tạo mới một hồ sơ thanh toán để bắt đầu làm việc.';
-                    btnHtml = `<button class="btn btn-primary btn-direct-create" id="btn-create-edited-direct" style="margin-top: 16px; display: inline-flex; align-items: center; gap: 6px;"><i data-lucide="plus-circle" style="width: 16px; height: 16px;"></i> Tạo Hồ Sơ Thanh Toán Mới</button>`;
+                    descEl.textContent = 'Hãy chọn một hồ sơ từ danh mục phía trên Header hoặc tạo mới một hồ sơ thanh toán để bắt đầu làm việc.';
+                    btnHtml = `
+                        <button class="btn btn-primary btn-direct-create" id="btn-create-edited-direct" style="margin-top: 16px; display: inline-flex; align-items: center; gap: 6px;"><i data-lucide="plus-circle" style="width: 16px; height: 16px;"></i> Tạo Hồ Sơ Thanh Toán Mới</button>
+                        <button class="btn btn-secondary btn-open-dropdown-direct" style="margin-top: 16px; margin-left: 8px; display: inline-flex; align-items: center; gap: 6px;"><i data-lucide="menu" style="width: 16px; height: 16px;"></i> Xem danh sách Hồ sơ</button>
+                    `;
                 }
                 
                 if (btnHtml) {
@@ -217,11 +227,6 @@ window.Components = {
         const isEdited = !isOriginal && !isMailMerge;
 
         container.innerHTML = `
-            <!-- Nút quay lại trên Mobile -->
-            <button class="btn btn-secondary btn-mobile-back" onclick="document.querySelector('.logo-container').click()" style="margin-bottom: 12px; display: none; width: fit-content; align-items: center; gap: 6px;">
-                <i data-lucide="arrow-left"></i> Quay lại danh sách
-            </button>
-
             <!-- Tiêu đề chi tiết hồ sơ -->
             <div class="detail-header">
                 <div class="detail-title-wrapper" style="min-width: 0;">

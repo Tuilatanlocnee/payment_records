@@ -26,7 +26,24 @@ window.AppStore = {
             if (!response.ok) throw new Error("Không thể kết nối đến máy chủ API Backend.");
             const data = await response.json();
             this.state.profiles = data.profiles || [];
-            this.state.activeProfileId = data.activeProfileId || null;
+            
+            // Khôi phục activeProfileId từ localStorage trước, nếu không có mới dùng từ server
+            const localActiveId = localStorage.getItem('activeProfileId');
+            if (localActiveId && this.state.profiles.some(p => p.id === localActiveId)) {
+                this.state.activeProfileId = localActiveId;
+                // Đồng bộ ngược lên server để đảm bảo Backend nhận biết được
+                try {
+                    await fetch(`${this.API_BASE}/profiles/active`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ profileId: localActiveId })
+                    });
+                } catch (e) {
+                    console.warn("Lỗi khi đồng bộ active profile ngược lên server:", e);
+                }
+            } else {
+                this.state.activeProfileId = data.activeProfileId || null;
+            }
         } catch (error) {
             console.error("Lỗi khi khởi tạo Store từ API:", error);
             this.state = { profiles: [], activeProfileId: null };
@@ -43,7 +60,14 @@ window.AppStore = {
             if (response.ok) {
                 const data = await response.json();
                 this.state.profiles = data.profiles || [];
-                this.state.activeProfileId = data.activeProfileId || null;
+                
+                // Đồng bộ với localStorage
+                const localActiveId = localStorage.getItem('activeProfileId');
+                if (localActiveId && this.state.profiles.some(p => p.id === localActiveId)) {
+                    this.state.activeProfileId = localActiveId;
+                } else {
+                    this.state.activeProfileId = data.activeProfileId || null;
+                }
             }
         } catch (error) {
             console.error("Lỗi khi đồng bộ lại hồ sơ:", error);
@@ -71,6 +95,11 @@ window.AppStore = {
     async setActiveProfile(profileId) {
         try {
             this.state.activeProfileId = profileId;
+            if (profileId) {
+                localStorage.setItem('activeProfileId', profileId);
+            } else {
+                localStorage.removeItem('activeProfileId');
+            }
             await fetch(`${this.API_BASE}/profiles/active`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

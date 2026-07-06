@@ -45,11 +45,47 @@
                 <div class="logo-container">
                     <img src="MobiFone_logo.svg.png" alt="MobiFone Logo" class="logo-img">
                 </div>
-                <div class="header-divider"></div>
-                <h1 class="header-title">HỆ THỐNG ĐỒNG BỘ & TỰ ĐỘNG HÓA HỒ SƠ THANH TOÁN</h1>
             </div>
+            
+            <!-- Bộ chọn hồ sơ tích hợp trực tiếp trên Header chính -->
+            <div class="header-center-selector" style="position: relative;">
+                <!-- Nhóm tab phân loại hồ sơ -->
+                <div class="subheader-tabs">
+                    <button class="sidebar-tab active" id="tab-edited-profiles" data-type="edited" style="display: flex; align-items: center; gap: 4px;">
+                        Hồ sơ thanh toán <i data-lucide="chevron-down" style="width: 12px; height: 12px; opacity: 0.7;"></i>
+                    </button>
+                    <button class="sidebar-tab" id="tab-original-profiles" data-type="original" style="display: flex; align-items: center; gap: 4px;">
+                        Hồ sơ gốc mẫu <i data-lucide="chevron-down" style="width: 12px; height: 12px; opacity: 0.7;"></i>
+                    </button>
+                    <button class="sidebar-tab" id="tab-mailmerge-profiles" data-type="mailmerge" style="display: flex; align-items: center; gap: 4px;">
+                        Tệp Mail merge <i data-lucide="chevron-down" style="width: 12px; height: 12px; opacity: 0.7;"></i>
+                    </button>
+                </div>
+                
+                <!-- Chỉ báo hồ sơ đang hoạt động -->
+                <div id="active-profile-indicator" class="active-profile-indicator hidden" style="display: flex; align-items: center; gap: 6px; margin-left: 16px;">
+                    <i data-lucide="folder-open" style="width: 16px; height: 16px; color: var(--primary-color);"></i>
+                    <span id="active-profile-name" style="font-size: 13px; font-weight: 700; color: var(--primary-color);"></span>
+                </div>
+                
+                <!-- Dropdown menu chứa danh sách hồ sơ của Tab được chọn -->
+                <div id="profile-dropdown-menu" class="profile-dropdown-menu hidden">
+                    <div class="dropdown-search-wrapper">
+                        <i data-lucide="search" class="search-icon"></i>
+                        <input type="text" id="search-profile-input" placeholder="Tìm kiếm hồ sơ..." autocomplete="off">
+                    </div>
+                    <ul id="profile-list" class="dropdown-profile-list">
+                        <!-- Nội dung render động từ js/components.js -->
+                    </ul>
+                    <div class="dropdown-footer">
+                        <span class="badge" id="dropdown-profile-count">0 hồ sơ</span>
+                    </div>
+                </div>
+            </div>
+
             <div class="header-right">
-                <!-- Nút tạo hồ sơ mới trên header theo yêu cầu của đề tài -->
+                <span class="badge" id="profile-count" style="margin-right: 8px;">0 hồ sơ</span>
+                <!-- Nút tạo hồ sơ mới trên header -->
                 <button id="btn-create-profile" class="btn btn-primary">
                     <i data-lucide="plus-circle"></i>
                     <span class="btn-text">TẠO HỒ SƠ MỚI</span>
@@ -59,28 +95,6 @@
 
         <!-- Bố cục chính của ứng dụng (SPA Layout) -->
         <div class="app-container">
-            <!-- Sidebar bên trái: Danh sách các hồ sơ đã tạo -->
-            <aside class="app-sidebar">
-                <div class="sidebar-header">
-                    <h2>Danh sách hồ sơ</h2>
-                    <span class="badge" id="profile-count">0 hồ sơ</span>
-                </div>
-                <div class="sidebar-search">
-                    <i data-lucide="search" class="search-icon"></i>
-                    <input type="text" id="search-profile-input" placeholder="Tìm kiếm hồ sơ...">
-                </div>
-                <!-- Phân nhóm hồ sơ -->
-                <div class="sidebar-tabs" style="display: flex; gap: 4px; overflow-x: auto; padding: 2px;">
-                    <button class="sidebar-tab active" id="tab-edited-profiles" data-type="edited" style="white-space: nowrap; flex: 1; text-align: center; padding: 8px 4px; font-size: 11px;">Hồ sơ thanh toán</button>
-                    <button class="sidebar-tab" id="tab-original-profiles" data-type="original" style="white-space: nowrap; flex: 1; text-align: center; padding: 8px 4px; font-size: 11px;">Hồ sơ gốc</button>
-                    <button class="sidebar-tab" id="tab-mailmerge-profiles" data-type="mailmerge" style="white-space: nowrap; flex: 1; text-align: center; padding: 8px 4px; font-size: 11px;">Mail merge</button>
-                </div>
-                <!-- Danh sách hồ sơ sẽ được render động tại đây -->
-                <ul id="profile-list" class="profile-list">
-                    <!-- Nội dung được render từ js/components.js -->
-                </ul>
-            </aside>
-
             <!-- Khu vực hiển thị nội dung chính bên phải -->
             <main class="app-main">
                 <!-- Trạng thái trống khi chưa chọn hồ sơ nào -->
@@ -89,8 +103,7 @@
                         <i data-lucide="folder-open" style="width: 64px; height: 64px;"></i>
                     </div>
                     <h3>Chưa chọn hồ sơ thanh toán</h3>
-                    <p>Hãy chọn một hồ sơ từ danh sách bên trái hoặc bấm nút "Tạo Hồ Sơ Mới" trên thanh tiêu đề để bắt đầu
-                        làm việc.</p>
+                    <p>Hãy chọn một hồ sơ từ thanh chọn trên Header hoặc bấm nút "Tạo Hồ Sơ Mới" để bắt đầu làm việc.</p>
                 </div>
 
                 <!-- Vùng hiển thị chi tiết hồ sơ khi được click chọn -->
@@ -141,9 +154,9 @@
     <div id="toast-container" class="toast-container"></div>
 
     <!-- Nạp các file script xử lý logic của ứng dụng -->
-    <script src="js/store.js?v=1.5.5"></script>
-    <script src="js/components.js?v=1.5.5"></script>
-    <script src="js/app.js?v=1.5.5"></script>
+    <script src="js/store.js?v=1.6.0"></script>
+    <script src="js/components.js?v=1.6.0"></script>
+    <script src="js/app.js?v=1.6.0"></script>
 </body>
 
 </html>
