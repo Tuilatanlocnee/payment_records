@@ -114,17 +114,29 @@ h1, h2, h3, h4 {
 /* 4. Thanh Header ứng dụng (Sleek Premium Header) */
 .app-header {
     height: 64px;
-    background-color: rgba(255, 255, 255, 0.85);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border-bottom: 1px solid var(--border-color);
-    border-top: 4px solid var(--primary-color); /* Đường viền chỉ màu xanh MobiFone thương hiệu cực kỳ chuyên nghiệp */
+    background-color: rgba(255, 255, 255, 0.82);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+    position: relative; /* Cho phép định vị phần tử giả ::before thương hiệu */
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 0 24px;
     z-index: 10;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02), 0 1px 3px rgba(0, 0, 0, 0.01);
+}
+
+/* Đường viền accent thương hiệu MobiFone (75% Xanh Mobi, 25% Đỏ Fone) */
+.app-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: linear-gradient(90deg, var(--mobi-blue) 0%, var(--mobi-blue) 75%, var(--fone-red) 75%, var(--fone-red) 100%);
+    z-index: 11;
 }
 
 .header-left {
@@ -2536,7 +2548,7 @@ form {
     white-space: nowrap;
 }
 
-/* Thẻ chọn hồ sơ gốc mẫu khi chưa có file */
+/* Thẻ chọn hồ sơ gốc khi chưa có file */
 .btn-copy-template-card:hover {
     border-color: var(--primary-color) !important;
     background-color: var(--primary-light) !important;
@@ -2603,51 +2615,61 @@ form {
 
 .subheader-tabs {
     display: flex;
-    gap: 4px;
-    background-color: var(--bg-secondary);
-    padding: 3px;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-color);
+    gap: 6px;
+    background-color: #f1f5f9;
+    padding: 4px;
+    border-radius: 30px; /* Dáng capsule mềm mại cực kỳ hiện đại */
+    border: 1px solid rgba(226, 232, 240, 0.8);
     flex-shrink: 0;
-    height: 36px;
+    height: 38px;
     align-items: center;
     box-sizing: border-box;
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
 .subheader-tabs .sidebar-tab {
-    height: 28px;
-    padding: 0 12px;
+    height: 30px;
+    padding: 0 14px;
     display: flex;
     align-items: center;
-    gap: 4px;
-    font-size: 12px;
+    gap: 6px;
+    font-size: 12.5px;
     font-weight: 600;
     color: var(--text-secondary);
     background: none;
     border: none;
-    border-radius: var(--radius-sm);
+    border-radius: 20px;
     cursor: pointer;
-    transition: all var(--transition-fast);
+    transition: all var(--transition-normal);
     white-space: nowrap;
 }
 
 .subheader-tabs .sidebar-tab:hover {
-    color: var(--text-primary);
+    color: var(--primary-color);
+    background-color: rgba(255, 255, 255, 0.6);
 }
 
 .subheader-tabs .sidebar-tab.active {
     background-color: #ffffff !important;
     color: var(--primary-color) !important;
-    box-shadow: var(--shadow-sm) !important;
+    box-shadow: 0 2px 8px rgba(0, 86, 158, 0.1) !important;
+    font-weight: 700;
 }
 
-.subheader-tabs .sidebar-tab i,
-.subheader-tabs .sidebar-tab svg {
+.subheader-tabs .sidebar-tab .tab-icon {
+    width: 14px;
+    height: 14px;
+    opacity: 0.8;
+}
+
+.subheader-tabs .sidebar-tab .chevron-icon {
+    width: 12px;
+    height: 12px;
+    opacity: 0.6;
     transition: transform var(--transition-fast);
 }
 
-.subheader-tabs .sidebar-tab.open i,
-.subheader-tabs .sidebar-tab.open svg {
+.subheader-tabs .sidebar-tab.open .chevron-icon {
     transform: rotate(180deg);
 }
 
@@ -2655,29 +2677,34 @@ form {
 .active-profile-indicator {
     display: flex;
     align-items: center;
-    height: 36px;
-    padding: 0 16px;
+    height: 34px;
+    padding: 0 14px;
     background-color: var(--primary-light);
     border: 1px solid var(--primary-border);
-    border-radius: var(--radius-lg);
+    border-radius: 20px;
+    margin-left: 12px;
     animation: fadeIn var(--transition-fast) forwards;
+    gap: 6px;
 }
 
 .active-profile-indicator i,
 .active-profile-indicator svg {
     color: var(--primary-color);
+    width: 14px;
+    height: 14px;
 }
 
 /* Hộp menu dropdown tuyệt đẹp */
 .profile-dropdown-menu {
     position: absolute;
     top: calc(100% + 8px);
-    left: 0;
     width: 320px;
-    background-color: #ffffff;
-    border: 1px solid var(--border-color);
+    background-color: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(226, 232, 240, 0.9);
     border-radius: var(--radius-md);
-    box-shadow: var(--shadow-lg);
+    box-shadow: 0 10px 25px -5px rgba(0, 86, 158, 0.1), 0 8px 16px -6px rgba(0, 0, 0, 0.05);
     z-index: 1000;
     display: flex;
     flex-direction: column;
@@ -2687,18 +2714,19 @@ form {
 
 .dropdown-search-wrapper {
     position: relative;
-    padding: 10px 12px;
+    padding: 12px;
     border-bottom: 1px solid var(--border-color);
+    background-color: #f8fafc;
 }
 
 .dropdown-search-wrapper input {
     width: 100%;
-    height: 34px;
+    height: 36px;
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
-    padding: 0 10px 0 32px;
+    padding: 0 12px 0 32px;
     font-size: 13px;
-    background-color: var(--bg-secondary);
+    background-color: #ffffff;
     transition: all var(--transition-fast);
 }
 
@@ -2706,6 +2734,7 @@ form {
     outline: none;
     border-color: var(--primary-color);
     background-color: #ffffff;
+    box-shadow: 0 0 0 3px rgba(0, 86, 158, 0.08);
 }
 
 .dropdown-search-wrapper .search-icon {
@@ -2723,18 +2752,18 @@ form {
     list-style: none;
     max-height: 240px;
     overflow-y: auto;
-    padding: 6px 0;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
 
 .dropdown-profile-list .profile-item {
-    padding: 10px 16px;
+    padding: 10px 14px;
     cursor: pointer;
+    border-radius: var(--radius-sm);
     transition: all var(--transition-fast);
-    border-bottom: 1px solid #f8fafc;
-}
-
-.dropdown-profile-list .profile-item:last-child {
-    border-bottom: none;
+    border: 1px solid transparent;
 }
 
 .dropdown-profile-list .profile-item:hover {
@@ -2743,14 +2772,16 @@ form {
 
 .dropdown-profile-list .profile-item.active {
     background-color: var(--primary-light);
+    border-color: var(--primary-border);
     border-left: 3px solid var(--primary-color);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
 .dropdown-profile-list .profile-item h4 {
     font-size: 13px;
     font-weight: 600;
     color: var(--text-primary);
-    margin: 0 0 2px 0;
+    margin: 0 0 3px 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2762,9 +2793,44 @@ form {
 }
 
 .dropdown-footer {
-    padding: 8px 12px;
+    padding: 10px 12px;
     border-top: 1px solid var(--border-color);
     background-color: #f8fafc;
     display: flex;
     justify-content: flex-end;
+}
+
+/* Tinh chỉnh bổ sung cho Badge & Button tạo mới trên Header */
+.header-right .badge {
+    background: linear-gradient(135deg, rgba(0, 86, 158, 0.05) 0%, rgba(0, 86, 158, 0.1) 100%);
+    color: var(--primary-color);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid rgba(0, 86, 158, 0.12);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+#btn-create-profile {
+    background: linear-gradient(135deg, var(--primary-color) 0%, #006adc 100%);
+    color: #ffffff;
+    font-weight: 600;
+    border: none;
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 12px rgba(0, 86, 158, 0.15);
+    transition: all var(--transition-normal);
+}
+
+#btn-create-profile:hover {
+    background: linear-gradient(135deg, var(--primary-hover) 0%, var(--primary-color) 100%);
+    box-shadow: 0 6px 16px rgba(0, 86, 158, 0.3);
+    transform: translateY(-1px);
+}
+
+#btn-create-profile:active {
+    transform: translateY(1px);
+    box-shadow: 0 2px 6px rgba(0, 86, 158, 0.2);
 }

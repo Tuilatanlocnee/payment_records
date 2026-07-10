@@ -45,20 +45,28 @@
                 <div class="logo-container">
                     <img src="MobiFone_logo.svg.png" alt="MobiFone Logo" class="logo-img">
                 </div>
+                <div class="header-divider"></div>
+                <h1 class="header-title">Hồ sơ thanh toán</h1>
             </div>
             
             <!-- Bộ chọn hồ sơ tích hợp trực tiếp trên Header chính -->
             <div class="header-center-selector" style="position: relative;">
                 <!-- Nhóm tab phân loại hồ sơ -->
                 <div class="subheader-tabs">
-                    <button class="sidebar-tab active" id="tab-edited-profiles" data-type="edited" style="display: flex; align-items: center; gap: 4px;">
-                        Hồ sơ thanh toán <i data-lucide="chevron-down" style="width: 12px; height: 12px; opacity: 0.7;"></i>
+                    <button class="sidebar-tab active" id="tab-edited-profiles" data-type="edited">
+                        <i data-lucide="folder-check" class="tab-icon"></i>
+                        <span class="tab-text">Hồ sơ thanh toán</span>
+                        <i data-lucide="chevron-down" class="chevron-icon"></i>
                     </button>
-                    <button class="sidebar-tab" id="tab-original-profiles" data-type="original" style="display: flex; align-items: center; gap: 4px;">
-                        Hồ sơ gốc mẫu <i data-lucide="chevron-down" style="width: 12px; height: 12px; opacity: 0.7;"></i>
+                    <button class="sidebar-tab" id="tab-original-profiles" data-type="original">
+                        <i data-lucide="layout-template" class="tab-icon"></i>
+                        <span class="tab-text">Hồ sơ gốc</span>
+                        <i data-lucide="chevron-down" class="chevron-icon"></i>
                     </button>
-                    <button class="sidebar-tab" id="tab-mailmerge-profiles" data-type="mailmerge" style="display: flex; align-items: center; gap: 4px;">
-                        Tệp Mail merge <i data-lucide="chevron-down" style="width: 12px; height: 12px; opacity: 0.7;"></i>
+                    <button class="sidebar-tab" id="tab-mailmerge-profiles" data-type="mailmerge">
+                        <i data-lucide="file-spreadsheet" class="tab-icon"></i>
+                        <span class="tab-text">Tệp Mail merge</span>
+                        <i data-lucide="chevron-down" class="chevron-icon"></i>
                     </button>
                 </div>
                 
@@ -84,7 +92,6 @@
             </div>
 
             <div class="header-right">
-                <span class="badge" id="profile-count" style="margin-right: 8px;">0 hồ sơ</span>
                 <!-- Nút tạo hồ sơ mới trên header -->
                 <button id="btn-create-profile" class="btn btn-primary">
                     <i data-lucide="plus-circle"></i>

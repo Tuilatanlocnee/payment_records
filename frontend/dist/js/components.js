@@ -4,7 +4,7 @@
  * ==========================================================================
  */
 
-window.safeCreateIcons = function() {
+window.safeCreateIcons = function () {
     if (typeof lucide !== 'undefined' && typeof lucide.createIcons === 'function') {
         lucide.createIcons();
     } else {
@@ -27,7 +27,7 @@ window.Components = {
                 }
             }
         });
-        
+
         const rowSuffixRegex = /^(.*)_(\d+)$/;
         let maxSuffixRowIndex = 0;
         variables.forEach(v => {
@@ -39,7 +39,7 @@ window.Components = {
                 }
             }
         });
-        
+
         return Math.max(maxMultiLineRows, maxSuffixRowIndex);
     },
 
@@ -48,7 +48,7 @@ window.Components = {
      */
     getVariableValue(variables, varName, rowIndex = 1) {
         if (!variables) return "";
-        
+
         // 1. Tìm biến có hậu tố dòng trước (Ví dụ: MA_HO_SO_1)
         const targetVarName = `${varName}_${rowIndex}`;
         const suffixVar = variables.find(v => v.name === targetVarName);
@@ -120,7 +120,7 @@ window.Components = {
         const container = document.getElementById('profile-list');
         const countBadge = document.getElementById('profile-count');
         const dropdownCountBadge = document.getElementById('dropdown-profile-count');
-        
+
         if (!container) return;
 
         const activeTab = document.querySelector('.sidebar-tab.active');
@@ -145,10 +145,10 @@ window.Components = {
         container.innerHTML = tabFiltered.map(profile => {
             const isActive = profile.id === activeId ? 'active' : '';
             const fileCount = profile.files ? profile.files.length : 0;
-            const subText = profile.type === 'original' 
-                ? 'Hồ sơ mẫu' 
+            const subText = profile.type === 'original'
+                ? 'Hồ sơ mẫu'
                 : (profile.type === 'mailmerge' ? 'Mail merge' : `${fileCount} tài liệu`);
-            
+
             return `
                 <li class="profile-item ${isActive}" data-id="${profile.id}" id="profile-item-${profile.id}">
                     <h4>${profile.name}</h4>
@@ -168,22 +168,22 @@ window.Components = {
     renderProfileDetail(profile, activeSearchQuery = "") {
         const container = document.getElementById('profile-detail-container');
         const emptyState = document.getElementById('empty-state');
-        
+
         if (!container || !emptyState) return;
 
         if (!profile) {
             container.classList.add('hidden');
-            
+
             // Cập nhật nội dung Empty State động theo tab đang active
             const activeTab = document.querySelector('.sidebar-tab.active');
             const tabType = activeTab ? activeTab.getAttribute('data-type') : 'edited';
-            
+
             const titleEl = emptyState.querySelector('h3');
             const descEl = emptyState.querySelector('p');
-            
+
             // Xóa nút cũ nếu có để tránh trùng lặp
             emptyState.querySelectorAll('.btn-direct-create, .btn-open-dropdown-direct').forEach(el => el.remove());
-            
+
             if (titleEl && descEl) {
                 let btnHtml = '';
                 if (tabType === 'mailmerge') {
@@ -194,10 +194,10 @@ window.Components = {
                         <button class="btn btn-secondary btn-open-dropdown-direct" style="margin-top: 16px; margin-left: 8px; display: inline-flex; align-items: center; gap: 6px;"><i data-lucide="menu" style="width: 16px; height: 16px;"></i> Xem danh sách Mail merge</button>
                     `;
                 } else if (tabType === 'original') {
-                    titleEl.textContent = 'Chưa chọn hồ sơ gốc mẫu';
-                    descEl.textContent = 'Hãy chọn một hồ sơ gốc mẫu từ danh mục phía trên Header hoặc tạo mới một hồ sơ gốc để tải tài liệu mẫu.';
+                    titleEl.textContent = 'Chưa chọn hồ sơ gốc';
+                    descEl.textContent = 'Hãy chọn một hồ sơ gốc từ danh mục phía trên Header hoặc tạo mới một hồ sơ gốc để tải tài liệu mẫu.';
                     btnHtml = `
-                        <button class="btn btn-primary btn-direct-create" id="btn-create-original-direct" style="margin-top: 16px; display: inline-flex; align-items: center; gap: 6px;"><i data-lucide="plus-circle" style="width: 16px; height: 16px;"></i> Tạo Hồ Sơ Gốc Mẫu Mới</button>
+                        <button class="btn btn-primary btn-direct-create" id="btn-create-original-direct" style="margin-top: 16px; display: inline-flex; align-items: center; gap: 6px;"><i data-lucide="plus-circle" style="width: 16px; height: 16px;"></i> Tạo Hồ Sơ Gốc Mới</button>
                         <button class="btn btn-secondary btn-open-dropdown-direct" style="margin-top: 16px; margin-left: 8px; display: inline-flex; align-items: center; gap: 6px;"><i data-lucide="menu" style="width: 16px; height: 16px;"></i> Xem danh sách Hồ sơ gốc</button>
                     `;
                 } else {
@@ -208,12 +208,12 @@ window.Components = {
                         <button class="btn btn-secondary btn-open-dropdown-direct" style="margin-top: 16px; margin-left: 8px; display: inline-flex; align-items: center; gap: 6px;"><i data-lucide="menu" style="width: 16px; height: 16px;"></i> Xem danh sách Hồ sơ</button>
                     `;
                 }
-                
+
                 if (btnHtml) {
                     emptyState.insertAdjacentHTML('beforeend', btnHtml);
                 }
             }
-            
+
             emptyState.classList.remove('hidden');
             safeCreateIcons();
             return;
@@ -232,12 +232,12 @@ window.Components = {
                 <div class="detail-title-wrapper" style="min-width: 0;">
                     <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
                         <h2 style="margin: 0;">${profile.name}</h2>
-                        ${isOriginal 
-                            ? `<span class="badge" style="background-color: #0284c7; color: #ffffff; border-color: #0284c7;">Hồ sơ gốc (Mẫu)</span>` 
-                            : (isMailMerge 
-                                ? `<span class="badge" style="background-color: #059669; color: #ffffff; border-color: #059669;">Tệp Mail Merge</span>`
-                                : `<span class="badge" style="background-color: var(--primary-color); color: #ffffff; border-color: var(--primary-color);">Hồ sơ chỉnh sửa</span>`
-                              )}
+                        ${isOriginal
+                ? `<span class="badge" style="background-color: #0284c7; color: #ffffff; border-color: #0284c7;">Hồ sơ gốc</span>`
+                : (isMailMerge
+                    ? `<span class="badge" style="background-color: #059669; color: #ffffff; border-color: #059669;">Tệp Mail Merge</span>`
+                    : `<span class="badge" style="background-color: var(--primary-color); color: #ffffff; border-color: var(--primary-color);">Hồ sơ chỉnh sửa</span>`
+                )}
                     </div>
                     <div class="detail-subtitle">
                         Tạo lúc: <strong>${this.formatDate(profile.createdAt)}</strong>
@@ -279,12 +279,12 @@ window.Components = {
 
             <!-- Khối Tab Bar và Tab Content thay thế cho grid cũ để tối ưu diện tích và UX -->
             ${(() => {
-                if (isOriginal) return ''; // Ẩn hoàn toàn đối với Hồ sơ gốc mẫu
+                if (isOriginal) return ''; // Ẩn hoàn toàn đối với Hồ sơ gốc
 
                 const isMailMerge = profile.type === 'mailmerge';
                 const isEdited = !isOriginal && !isMailMerge;
                 const hasFiles = profile.files && profile.files.length > 0;
-                
+
                 const activeTab = (window.AppWorkspaceState && window.AppWorkspaceState.activeTab) || 'preview';
 
                 const isVariablesActive = activeTab === 'variables';
@@ -445,9 +445,9 @@ window.Components = {
         const headerHtml = `
             <div class="variables-group-header">
                 <p style="font-size: 12px; color: var(--text-secondary); margin: 0; max-width: 70%;">
-                    ${isMailMerge 
-                        ? 'Định nghĩa các mục và trường Mail Merge. Các biến này sẽ đồng bộ trực tiếp tới tài liệu của hồ sơ kết nối.' 
-                        : 'Danh sách các mục biến Mail Merge. Thay đổi giá trị tại đây sẽ tự động đồng bộ sang tất cả tài liệu.'}
+                    ${isMailMerge
+                ? 'Định nghĩa các mục và trường Mail Merge. Các biến này sẽ đồng bộ trực tiếp tới tài liệu của hồ sơ kết nối.'
+                : 'Danh sách các mục biến Mail Merge. Thay đổi giá trị tại đây sẽ tự động đồng bộ sang tất cả tài liệu.'}
                 </p>
                 <button class="btn btn-primary" id="btn-create-group" style="height: 32px; font-size: 12px;">
                     <i data-lucide="folder-plus"></i> Tạo mục mới
@@ -472,7 +472,7 @@ window.Components = {
         } else {
             mainContentHtml = Object.keys(groups).sort().map(groupName => {
                 const groupVars = groups[groupName];
-                
+
                 const variableRows = groupVars.map((v) => {
                     // Dòng biến
                     return `
@@ -890,7 +890,7 @@ window.Components = {
                 originalsHtml = `
                     <div style="text-align: center; padding: 30px 10px; color: var(--text-muted); background: #f8fafc; border-radius: var(--radius-md); border: 1px dashed var(--border-color);">
                         <i data-lucide="info" style="width: 24px; height: 24px; margin-bottom: 6px; color: var(--text-muted);"></i>
-                        <p style="font-size: 12.5px; margin: 0;">Chưa có Hồ sơ gốc mẫu nào có sẵn tài liệu trên hệ thống.</p>
+                        <p style="font-size: 12.5px; margin: 0;">Chưa có Hồ sơ gốc nào có sẵn tài liệu trên hệ thống.</p>
                     </div>
                 `;
             } else {
@@ -958,7 +958,7 @@ window.Components = {
         if (activeSearchQuery && activeSearchQuery.trim() !== "") {
             const cleanString = (str) => (str || '').normalize('NFC').replace(/\s+/g, ' ');
             const normalizedQuery = cleanString(activeSearchQuery);
-            displayFiles = profile.files.filter(file => 
+            displayFiles = profile.files.filter(file =>
                 cleanString(file.currentContent).includes(normalizedQuery) ||
                 cleanString(file.originalContent).includes(normalizedQuery)
             );
@@ -975,13 +975,13 @@ window.Components = {
 
         const maxRowIndex = this.getMaxRowIndex(profile.variables);
         const currentPreviewRow = (window.AppWorkspaceState && window.AppWorkspaceState.previewRowIndex) || 1;
-        
+
         let rowSelectorHtml = '';
         if (maxRowIndex > 1) {
             const rowOptions = Array.from({ length: maxRowIndex }, (_, i) => i + 1).map(r => `
                 <option value="${r}" ${r === currentPreviewRow ? 'selected' : ''}>Dòng ${r}</option>
             `).join('');
-            
+
             rowSelectorHtml = `
                 <div class="preview-row-selector" style="display: flex; align-items: center; gap: 8px;">
                     <label for="select-preview-row" style="font-size: 13px; font-weight: 600; white-space: nowrap;">
@@ -1075,7 +1075,7 @@ window.Components = {
      */
     formatContentForPreview(content, type, replacements = [], activeSearchQuery = "") {
         if (!content) return '';
-        
+
         let escaped = content.normalize('NFC');
 
         // Tạm thời thay thế các thẻ HTML bảng sang token an toàn không chứa ký tự đặc biệt
@@ -1140,7 +1140,7 @@ window.Components = {
                 return `<span class="highlight-search-temp">${p2}</span>`;
             });
         }
-        
+
         // Phân tích thông minh theo từng dòng để định dạng căn lề (quốc hiệu, tiêu đề, ngày tháng, chữ ký) chuẩn Việt Nam
         const lines = escaped.split('\n');
         let inRightSignature = false;
@@ -1160,7 +1160,7 @@ window.Components = {
                 const inner = trimmedLine.substring(7, trimmedLine.length - 1);
                 let base64Src = inner;
                 let customStyle = "";
-                
+
                 const pipeIndex = inner.indexOf('|');
                 if (pipeIndex !== -1) {
                     base64Src = inner.substring(0, pipeIndex);
@@ -1175,7 +1175,7 @@ window.Components = {
                         customStyle = `${wStyle}; ${hStyle};`;
                     }
                 }
-                
+
                 const imgStyle = customStyle ? customStyle : "max-width: 100%; max-height: 250px; height: auto;";
                 return `<div style="text-align: center; margin: 15px 0;"><img src="${base64Src}" style="${imgStyle} border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); display: inline-block;"></div>`;
             }
@@ -1217,7 +1217,7 @@ window.Components = {
                 inRightSignature = true;
                 return `<div style="text-align: center; margin-left: auto; margin-right: 20px; width: 320px; font-weight: bold; margin-top: 20px; font-size: 1.05em;">${trimmedLine}</div>`;
             }
-            
+
             if (inRightSignature) {
                 if (trimmedLine === "") {
                     return `<div></div>`;
@@ -1226,13 +1226,13 @@ window.Components = {
                     return `<div style="text-align: center; margin-left: auto; margin-right: 20px; width: 320px; font-weight: bold; margin-top: 60px;">${trimmedLine}</div>`;
                 }
             }
-            
+
             // Mặc định
             return `<div>${line}</div>`;
         });
 
         let result = formattedLines.join('');
-        
+
         // Khôi phục các thẻ bảng HTML từ token an toàn
         result = result
             .replace(/___TABLE_OPEN___/g, '<table class="docx-table">')
@@ -1254,7 +1254,7 @@ window.Components = {
      */
     convertPlaceholdersToTags(htmlContent, variables, rowIndex = 1) {
         if (!htmlContent) return "";
-        
+
         // 1. Chuyển đổi placeholders {{TEN_BIEN}} thành thẻ span
         const placeholderRegex = /\{\{\s*([^}]+?)\s*\}\}/g;
         let updatedHtml = htmlContent.replace(placeholderRegex, (match, varName) => {
@@ -1264,13 +1264,22 @@ window.Components = {
             return `<span class="mail-merge-tag" data-variable="${cleanVarName}" contenteditable="true">${displayText}</span>`;
         });
 
-        // 2. Cập nhật nội dung các thẻ span mail-merge-tag hiện có theo rowIndex hiện tại
-        const spanRegex = /(<span\b[^>]*data-variable="([^"]+)"[^>]*>)([\s\S]*?)(<\/span>)/g;
-        updatedHtml = updatedHtml.replace(spanRegex, (match, pStart, varName, pContent, pEnd) => {
-            const cleanVarName = varName.trim();
-            const value = this.getVariableValue(variables, cleanVarName, rowIndex);
+        // 2. Cập nhật nội dung các thẻ span mail-merge-tag bằng Regex siêu thông minh để tránh làm hỏng cấu trúc bảng HTML
+        const spanRegex = /<span\b([^>]*)>([\s\S]*?)<\/span>/gi;
+        updatedHtml = updatedHtml.replace(spanRegex, (match, attrs, content) => {
+            if (!attrs.includes('mail-merge-tag')) return match;
+            
+            const varNameMatch = attrs.match(/data-variable="([^"]+)"/i);
+            if (!varNameMatch) return match;
+            const cleanVarName = varNameMatch[1].trim();
+            
+            const dataRowMatch = attrs.match(/data-row="(\d+)"/i);
+            const targetRowIndex = dataRowMatch ? (parseInt(dataRowMatch[1]) || 1) : rowIndex;
+            
+            const value = this.getVariableValue(variables, cleanVarName, targetRowIndex);
             const displayText = value || `{{${cleanVarName}}}`;
-            return `${pStart}${displayText}${pEnd}`;
+            
+            return `<span ${attrs.trim()}>${displayText}</span>`;
         });
 
         return updatedHtml;
@@ -1295,7 +1304,7 @@ window.Components = {
             const lines = editedHtml.split('\n');
             editedHtml = lines.map(line => `<div>${line.trim() === "" ? '<br>' : line}</div>`).join('');
         }
-        
+
         // Chuyển đổi placeholders thành tags trực quan trên editor
         editedContainer.innerHTML = this.convertPlaceholdersToTags(editedHtml, variables, rowIndex);
 

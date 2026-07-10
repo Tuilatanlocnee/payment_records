@@ -19,10 +19,10 @@ const startAppDirectly = async () => {
     }
 
     const loadingOverlay = document.getElementById('app-loading-overlay');
-    
+
     // 1. Hiển thị màn hình đánh thức server
     if (loadingOverlay) loadingOverlay.classList.remove('hidden');
-    
+
     // 2. Gọi API đánh thức server và tải dữ liệu
     try {
         await AppStore.init();
@@ -31,7 +31,7 @@ const startAppDirectly = async () => {
     } finally {
         if (loadingOverlay) loadingOverlay.classList.add('hidden');
     }
-    
+
     // 3. Khởi động Workspace chính (gắn các sự kiện)
     initApp();
 };
@@ -49,12 +49,12 @@ function initApp() {
     // Xác định tab mặc định có chứa hồ sơ để kích hoạt ban đầu
     const profiles = AppStore.getProfiles();
     let defaultTab = 'edited';
-    
+
     if (profiles.length > 0) {
         const hasEdited = profiles.some(p => (p.type || 'edited') === 'edited');
         const hasOriginal = profiles.some(p => p.type === 'original');
         const hasMailMerge = profiles.some(p => p.type === 'mailmerge');
-        
+
         if (hasEdited) {
             defaultTab = 'edited';
         } else if (hasOriginal) {
@@ -63,7 +63,7 @@ function initApp() {
             defaultTab = 'mailmerge';
         }
     }
-    
+
     // Lưu và kích hoạt tab mặc định này
     AppStore.state.activeTab = defaultTab;
     const activeTabBtn = document.querySelector(`.sidebar-tab[data-type="${defaultTab}"]`);
@@ -73,7 +73,7 @@ function initApp() {
 
     // Render danh sách hồ sơ ban đầu của tab active
     renderProfiles();
-    
+
     // Tự động hiển thị chi tiết hồ sơ active (nếu có)
     renderActiveProfile();
 
@@ -85,7 +85,7 @@ function initApp() {
             try {
                 currentSearchQuery = ""; // Reset từ khóa tìm kiếm
                 await AppStore.setActiveProfile(null);
-                
+
                 // Tắt các tab active và đóng dropdown
                 document.querySelectorAll('.sidebar-tab').forEach(t => {
                     t.classList.remove('active');
@@ -114,7 +114,7 @@ function initApp() {
         emptyState.addEventListener('click', (e) => {
             const btnDirect = e.target.closest('.btn-direct-create');
             const btnOpenDropdown = e.target.closest('.btn-open-dropdown-direct');
-            
+
             if (btnDirect) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -123,7 +123,7 @@ function initApp() {
                 if (btnCreateProfile) {
                     // Mở modal tạo mới
                     btnCreateProfile.click();
-                    
+
                     // Thiết lập type tương ứng trong modal
                     const typeSelect = document.getElementById('profile-type-select');
                     if (typeSelect) {
@@ -141,7 +141,7 @@ function initApp() {
             } else if (btnOpenDropdown) {
                 e.preventDefault();
                 e.stopPropagation(); // NGĂN NỔI BỌT LÊN DOCUMENT!
-                
+
                 // Mở dropdown chọn hồ sơ của tab đang active
                 const activeTab = document.querySelector('.sidebar-tab.active');
                 if (activeTab) {
@@ -155,12 +155,12 @@ function initApp() {
     const handleTabSwitch = async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        
+
         const tabBtn = e.target.closest('.sidebar-tab');
         if (!tabBtn) return;
-        
+
         const type = tabBtn.getAttribute('data-type');
-        
+
         // Reset các tab khác
         document.querySelectorAll('.sidebar-tab').forEach(t => {
             if (t !== tabBtn) {
@@ -168,7 +168,7 @@ function initApp() {
                 t.classList.remove('open');
             }
         });
-        
+
         const dropdownMenu = document.getElementById('profile-dropdown-menu');
         if (dropdownMenu) {
             // Nếu tab đã active và dropdown đang mở -> đóng dropdown
@@ -179,13 +179,13 @@ function initApp() {
                 // Ngược lại -> mở dropdown định vị bên dưới tab
                 tabBtn.classList.add('active');
                 tabBtn.classList.add('open');
-                
+
                 // Cập nhật local state của AppStore về active tab
                 AppStore.state.activeTab = type;
-                
+
                 // Render danh sách hồ sơ tương ứng
                 renderProfiles();
-                
+
                 // Định vị dropdown ngay dưới tab click
                 const rect = tabBtn.getBoundingClientRect();
                 const parentRect = document.querySelector('.header-center-selector').getBoundingClientRect();
@@ -200,7 +200,7 @@ function initApp() {
     const tabEdited = document.getElementById('tab-edited-profiles');
     const tabOriginal = document.getElementById('tab-original-profiles');
     const tabMailMerge = document.getElementById('tab-mailmerge-profiles');
-    
+
     if (tabEdited) tabEdited.addEventListener('click', handleTabSwitch);
     if (tabOriginal) tabOriginal.addEventListener('click', handleTabSwitch);
     if (tabMailMerge) tabMailMerge.addEventListener('click', handleTabSwitch);
@@ -220,7 +220,7 @@ function initApp() {
             profileNameInput.value = '';
             profileNameInput.focus();
 
-            // Nạp danh sách các hồ sơ gốc mẫu làm template
+            // Nạp danh sách các hồ sơ gốc làm template
             const originalProfiles = AppStore.getProfiles().filter(p => p.type === 'original');
             const templateSelect = document.getElementById('profile-template-select');
             if (templateSelect) {
@@ -264,13 +264,13 @@ function initApp() {
                     }
                     if (modalTitle) modalTitle.textContent = 'TẠO TỆP MAIL MERGE MỚI';
                 } else if (val === 'original') {
-                    if (nameLabel) nameLabel.innerHTML = 'Tên Hồ sơ gốc (Mẫu) <span class="required">*</span>';
-                    if (profileNameInput) profileNameInput.placeholder = 'Nhập tên Hồ sơ gốc mẫu...';
+                    if (nameLabel) nameLabel.innerHTML = 'Tên Hồ sơ gốc <span class="required">*</span>';
+                    if (profileNameInput) profileNameInput.placeholder = 'Nhập tên Hồ sơ gốc...';
                     if (nameHelp) {
                         nameHelp.id = 'profile-name-help';
                         nameHelp.textContent = 'Đặt tên cho bộ tài liệu mẫu.';
                     }
-                    if (modalTitle) modalTitle.textContent = 'TẠO HỒ SƠ GỐC MẪU MỚI';
+                    if (modalTitle) modalTitle.textContent = 'TẠO HỒ SƠ GỐC MỚI';
                 } else {
                     if (nameLabel) nameLabel.innerHTML = 'Tên hồ sơ thanh toán <span class="required">*</span>';
                     if (profileNameInput) profileNameInput.placeholder = 'Nhập tên hồ sơ thanh toán...';
@@ -315,7 +315,7 @@ function initApp() {
                 try {
                     const newProfile = await AppStore.createProfile(profileName, type, originalProfileId);
                     modalCreateProfile.classList.add('hidden');
-                    
+
                     // Chuyển tab tương ứng với loại hồ sơ vừa tạo để người dùng thấy ngay
                     if (type === 'original') {
                         if (tabOriginal) tabOriginal.click();
@@ -324,7 +324,7 @@ function initApp() {
                     } else {
                         if (tabEdited) tabEdited.click();
                     }
-                    
+
                     showToast(`Tạo thành công hồ sơ: "${newProfile.name}"`, 'success');
                     await AppStore.setActiveProfile(newProfile.id);
                     renderProfiles();
@@ -355,7 +355,7 @@ function initApp() {
             const profileItem = e.target.closest('.profile-item');
             if (profileItem) {
                 const profileId = profileItem.getAttribute('data-id');
-                
+
                 // Reset trạng thái đóng/mở khi chuyển đổi giữa các hồ sơ
                 if (window.AppWorkspaceState) {
                     window.AppWorkspaceState.activeTab = 'preview';
@@ -420,7 +420,7 @@ function initApp() {
                     // Cập nhật thuộc tính mailMergeId và variables trong state local
                     activeProfile.mailMergeId = res.mailMergeId;
                     activeProfile.variables = res.variables;
-                    
+
                     if (mailMergeId) {
                         showToast("Đã kết nối thành công tới Tệp Mail Merge và đồng bộ các biến!", "success");
                     } else {
@@ -438,7 +438,7 @@ function initApp() {
                 if (window.AppWorkspaceState) {
                     window.AppWorkspaceState.previewRowIndex = parseInt(selectRow.value) || 1;
                 }
-                
+
                 // Đồng bộ hiển thị lại văn bản xem trước theo dòng dữ liệu mới
                 const activeProfile = AppStore.getActiveProfile();
                 if (activeProfile && activeProfile.files && activeProfile.files.length > 0) {
@@ -514,7 +514,7 @@ function initApp() {
                 if (!activeProfile || !groupName) return;
 
                 const updatedVariables = [...(activeProfile.variables || [])];
-                
+
                 // Sinh tên trường tự động không trùng
                 let count = 1;
                 let newFieldName = `TRUONG_MOI_${count}`;
@@ -549,7 +549,7 @@ function initApp() {
 
                 if (confirm(`Bạn có chắc chắn muốn xóa mục "${groupName}" và TẤT CẢ các trường bên trong không?`)) {
                     const updatedVariables = (activeProfile.variables || []).filter(v => (v.group || 'Chung') !== groupName);
-                    
+
                     try {
                         await AppStore.updateProfileVariables(activeProfile.id, updatedVariables);
                         showToast(`Đã xóa mục "${groupName}" thành công.`, "success");
@@ -577,7 +577,7 @@ function initApp() {
                 if (oldGroupName === newGroupName) return; // Không thay đổi
 
                 const updatedVariables = [...(activeProfile.variables || [])];
-                
+
                 // Kiểm tra trùng nhóm mới
                 const isDuplicate = updatedVariables.some(v => v.group === newGroupName && v.group !== oldGroupName);
                 if (isDuplicate) {
@@ -653,7 +653,7 @@ function initApp() {
                         .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Bỏ dấu tiếng Việt
                         .replace(/\s+/g, '_')
                         .replace(/[^A-Z0-9_]/g, '');
-                    
+
                     keyInput.value = keyVal;
 
                     if (!keyVal || keyVal === "") {
@@ -755,7 +755,7 @@ function initApp() {
                 const command = btn.getAttribute('data-command');
                 document.execCommand(command, false, null);
                 btn.classList.toggle('active');
-                
+
                 const editor = document.getElementById('preview-content-edited');
                 if (editor) editor.focus();
             }
@@ -767,7 +767,7 @@ function initApp() {
             if (select) {
                 const command = select.classList.contains('font-name-select') ? 'fontName' : 'fontSize';
                 document.execCommand(command, false, select.value);
-                
+
                 const editor = document.getElementById('preview-content-edited');
                 if (editor) editor.focus();
             }
@@ -778,7 +778,7 @@ function initApp() {
             const picker = e.target.closest('.toolbar-color-picker');
             if (picker) {
                 document.execCommand('foreColor', false, picker.value);
-                
+
                 const editor = document.getElementById('preview-content-edited');
                 if (editor) editor.focus();
             }
@@ -798,7 +798,7 @@ function initApp() {
                 e.preventDefault();
                 const activeProfile = AppStore.getActiveProfile();
                 if (!activeProfile) return;
-                
+
                 saveSelectionRange();
                 const rect = btn.getBoundingClientRect();
                 showMailMergeMenu(rect.left, rect.bottom + window.scrollY, activeProfile.variables);
@@ -813,7 +813,7 @@ function initApp() {
             if (editor) {
                 const activeProfile = AppStore.getActiveProfile();
                 if (!activeProfile || (activeProfile.variables || []).length === 0) return;
-                
+
                 e.preventDefault();
                 saveSelectionRange();
                 showMailMergeMenu(e.pageX, e.pageY, activeProfile.variables);
@@ -1279,13 +1279,13 @@ function initApp() {
                         try {
                             const errData = await response.json();
                             if (errData && errData.error) errorMsg = errData.error;
-                        } catch (_) {}
+                        } catch (_) { }
                         throw new Error(errorMsg);
                     }
 
                     const blob = await response.blob();
                     const downloadUrl = window.URL.createObjectURL(blob);
-                    
+
                     // Tạo một thẻ link tải ảo và tự động click để tải file ZIP về
                     const a = document.createElement('a');
                     a.style.display = 'none';
@@ -1293,11 +1293,11 @@ function initApp() {
                     a.download = `${activeProfile.name}_export.zip`;
                     document.body.appendChild(a);
                     a.click();
-                    
+
                     // Giải phóng tài nguyên link tải
                     document.body.removeChild(a);
                     window.URL.revokeObjectURL(downloadUrl);
-                    
+
                     showToast("Đóng gói hồ sơ và tải về thành công!", "success");
                 } catch (err) {
                     console.error("Lỗi khi tải file ZIP xuất bản:", err);
@@ -1317,7 +1317,7 @@ function initApp() {
 
         // 13. Đã loại bỏ xử lý hiển thị popover xem trước nội dung file khi click
 
-        // 14. Sự kiện nhấp chọn Hồ sơ gốc mẫu khi chưa có file để sao chép
+        // 14. Sự kiện nhấp chọn Hồ sơ gốc khi chưa có file để sao chép
         detailContainer.addEventListener('click', async (e) => {
             const card = e.target.closest('.btn-copy-template-card');
             if (card) {
@@ -1330,7 +1330,7 @@ function initApp() {
                     try {
                         const updatedProfile = await AppStore.copyFilesFromOriginal(activeProfile.id, sourceId);
                         showToast(`Sao chép thành công ${updatedProfile.files.length} tài liệu từ hồ sơ gốc!`, "success");
-                        
+
                         // Render lại workspace để cập nhật giao diện
                         renderProfiles();
                         renderActiveProfile();
@@ -1434,7 +1434,7 @@ function triggerTextSearch() {
         const previewSection = document.getElementById('card-preview-section');
         if (previewSection) {
             previewSection.classList.remove('hidden');
-            
+
             // Cập nhật dropdown để chỉ hiển thị các tài liệu chứa cụm từ tìm kiếm
             const selectPreview = document.getElementById('select-preview-file');
             if (selectPreview) {
@@ -1443,7 +1443,7 @@ function triggerTextSearch() {
                     <option value="${file.id}" ${idx === 0 ? 'selected' : ''}>${file.name}</option>
                 `).join('');
             }
-            
+
             // Chọn file khớp đầu tiên để xem trước
             const defaultFile = matchingFiles[0] || activeProfile.files[0];
             if (defaultFile) {
@@ -1577,7 +1577,7 @@ function renderProfiles() {
  */
 function renderActiveProfile() {
     const activeProfile = AppStore.getActiveProfile();
-    
+
     // Đồng bộ chỉ báo hồ sơ đang chọn lên Header
     const indicatorEl = document.getElementById('active-profile-indicator');
     const nameEl = document.getElementById('active-profile-name');
@@ -1585,7 +1585,7 @@ function renderActiveProfile() {
         if (activeProfile) {
             nameEl.textContent = activeProfile.name;
             indicatorEl.classList.remove('hidden');
-            
+
             // Đánh dấu active đúng tab phân loại của hồ sơ đó
             document.querySelectorAll('.sidebar-tab').forEach(t => {
                 if (t.getAttribute('data-type') === (activeProfile.type || 'edited')) {
@@ -1598,7 +1598,7 @@ function renderActiveProfile() {
             indicatorEl.classList.add('hidden');
         }
     }
-    
+
     Components.renderProfileDetail(activeProfile, currentSearchQuery);
 
     // Thêm hoặc xóa class has-active-profile để phục vụ responsive trên mobile
@@ -1692,12 +1692,12 @@ function handleExcelImport(file, profileId) {
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
             const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-            
+
             if (!jsonData || jsonData.length === 0) {
                 showToast("File Excel trống hoặc không có dữ liệu.", "danger");
                 return;
             }
-            
+
             // Lọc ra các dòng hợp lệ có dữ liệu
             const validRows = jsonData.filter(row => row && row.length > 0);
             if (validRows.length === 0) {
@@ -1706,23 +1706,23 @@ function handleExcelImport(file, profileId) {
             }
 
             const firstRow = validRows[0];
-            
+
             // Nếu dòng đầu tiên có nhiều hơn 2 cột, đây là cấu trúc bảng (Mail Merge chuẩn)
             if (firstRow.length > 2) {
                 const headers = firstRow.map(h => String(h || '').trim());
                 const records = validRows.slice(1).filter(r => r && r.length > 0);
-                
+
                 if (records.length === 0) {
                     showToast("Bảng dữ liệu Excel không có dòng bản ghi nào dưới dòng tiêu đề.", "warning");
                     return;
                 }
-                
+
                 const importedVars = [];
-                
+
                 // Duyệt qua toàn bộ các dòng bản ghi để nạp dữ liệu
                 records.forEach((record, rIdx) => {
                     const rowNum = rIdx + 1; // Số thứ tự dòng bản ghi (1-based index)
-                    
+
                     // A. Duy trì ánh xạ cũ (Cột 1 làm Key, Cột 2 làm Value) để hỗ trợ tương thích ngược (Ví dụ: {{1}} -> HS-LHB-001)
                     if (record.length >= 2) {
                         const key = String(record[0]).trim();
@@ -1734,7 +1734,7 @@ function handleExcelImport(file, profileId) {
                             }
                         }
                     }
-                    
+
                     // B. Ánh xạ tất cả các cột của dòng dữ liệu với hậu tố chỉ mục (Ví dụ: {{TEN_DON_VI_1}} -> Công ty TNHH Bánh Ngọt Mật Ong)
                     headers.forEach((h, colIdx) => {
                         const key = h;
@@ -1745,7 +1745,7 @@ function handleExcelImport(file, profileId) {
                         }
                     });
                 });
-                
+
                 if (importedVars.length > 0) {
                     await saveImportedVariables(importedVars, profileId);
                 } else {
@@ -1766,7 +1766,7 @@ function handleExcelImport(file, profileId) {
                         }
                     }
                 }
-                
+
                 if (importedVars.length > 0) {
                     await saveImportedVariables(importedVars, profileId);
                 } else {
@@ -1805,7 +1805,7 @@ function showRecordPickerModal(headers, records, onSelect) {
             keyIndices.push(idx);
         }
     });
-    
+
     if (keyIndices.length === 0) {
         keyIndices.push(0);
         if (headers.length > 1) keyIndices.push(1);
@@ -1882,7 +1882,7 @@ async function saveImportedVariables(importedVars, profileId) {
         if (!activeProfile) return;
 
         const existingVars = [...(activeProfile.variables || [])];
-        
+
         // Trộn danh sách biến mới vào danh sách hiện tại
         for (const impVar of importedVars) {
             const idx = existingVars.findIndex(ev => ev.name === impVar.name);
@@ -1899,14 +1899,14 @@ async function saveImportedVariables(importedVars, profileId) {
                 });
             }
         }
-        
+
         const res = await AppStore.updateProfileVariables(profileId, existingVars);
         showToast(`Nạp thành công ${importedVars.length} biến từ Excel!`, 'success');
-        
+
         if (res && res.files) {
             activeProfile.files = res.files;
         }
-        
+
         renderProfiles();
         renderActiveProfile();
     } catch (err) {
@@ -1945,7 +1945,7 @@ function insertElementAtCursor(el) {
         const range = sel.getRangeAt(0);
         range.deleteContents();
         range.insertNode(el);
-        
+
         // Di chuyển con trỏ ra sau thẻ vừa chèn
         range.setStartAfter(el);
         range.setEndAfter(el);
@@ -1959,7 +1959,7 @@ function insertElementAtCursor(el) {
  */
 function showMailMergeMenu(x, y, variables) {
     removeMailMergeContextMenu();
-    
+
     if (!variables || variables.length === 0) {
         showToast("Không có biến nào khả dụng để chèn. Vui lòng khai báo danh mục biến.", "warning");
         return;
@@ -1979,7 +1979,7 @@ function showMailMergeMenu(x, y, variables) {
     menu.className = 'mail-merge-context-menu';
     menu.style.left = `${x}px`;
     menu.style.top = `${y}px`;
-    
+
     let itemsHtml = "";
     Object.keys(groups).sort().forEach(groupName => {
         // Thêm tiêu đề nhóm
@@ -2009,12 +2009,19 @@ function showMailMergeMenu(x, y, variables) {
             }
         });
     });
-    
+
     menu.innerHTML = `
         <div class="context-menu-header">Chọn biến Mail Merge</div>
-        ${itemsHtml}
+        <div class="context-menu-body" style="max-height: 240px; overflow-y: auto;">
+            ${itemsHtml}
+        </div>
+        <div class="context-menu-footer" style="padding: 8px 10px; border-top: 1px solid var(--border-color); text-align: center; background-color: var(--bg-secondary);">
+            <button class="btn btn-secondary btn-create-var-direct" style="width: 100%; height: 30px; font-size: 11.5px; display: flex; justify-content: center; align-items: center; gap: 4px; border-radius: var(--radius-sm);">
+                <i data-lucide="plus-circle" style="width: 13px; height: 13px; color: var(--primary-color);"></i> Tạo biến mới...
+            </button>
+        </div>
     `;
-    
+
     document.body.appendChild(menu);
     if (window.safeCreateIcons) {
         window.safeCreateIcons();
@@ -2030,7 +2037,7 @@ function showMailMergeMenu(x, y, variables) {
         const rect = item.getBoundingClientRect();
         const submenu = document.createElement('div');
         submenu.className = 'mail-merge-submenu';
-        
+
         // Định vị submenu
         let leftPos = rect.right + window.scrollX + 2;
         // Nếu submenu tràn mép phải màn hình, hiển thị bên trái menu chính
@@ -2065,9 +2072,11 @@ function showMailMergeMenu(x, y, variables) {
 
                 restoreSelectionRange();
 
+                // Chèn thẻ span Mail Merge với giá trị hiển thị tương ứng của dòng được chọn, lưu thuộc tính data-row
                 const span = document.createElement('span');
                 span.className = 'mail-merge-tag';
                 span.setAttribute('data-variable', varName);
+                span.setAttribute('data-row', rowNum); // Gán chỉ mục dòng cố định
                 span.setAttribute('contenteditable', 'true');
                 span.textContent = lineVal || `{{${varName}}}`;
 
@@ -2118,6 +2127,45 @@ function showMailMergeMenu(x, y, variables) {
 
     // Sự kiện click trên menu chính
     menu.addEventListener('click', async (me) => {
+        const btnCreateDirect = me.target.closest('.btn-create-var-direct');
+        if (btnCreateDirect) {
+            me.stopPropagation();
+            const newVarName = prompt("Nhập tên biến Mail Merge mới (Ví dụ: SO_DIEN_THOAI, MA_SO_THUE):");
+            if (!newVarName || newVarName.trim() === "") return;
+
+            const cleanVarName = newVarName.trim().toUpperCase().replace(/\s+/g, '_').normalize('NFC');
+
+            // Kiểm tra trùng lặp
+            const activeProfile = AppStore.getActiveProfile();
+            if (activeProfile && activeProfile.variables.some(v => v.name === cleanVarName)) {
+                showToast("Tên biến này đã tồn tại trong danh sách.", "warning");
+                return;
+            }
+
+            restoreSelectionRange();
+
+            const span = document.createElement('span');
+            span.className = 'mail-merge-tag';
+            span.setAttribute('data-variable', cleanVarName);
+            span.setAttribute('contenteditable', 'true');
+            span.textContent = `{{${cleanVarName}}}`;
+
+            insertElementAtCursor(span);
+
+            if (activeProfile) {
+                activeProfile.variables.push({
+                    name: cleanVarName,
+                    value: "",
+                    group: "Chung"
+                });
+                // Lưu lại editor content (sẽ tự động thêm biến mới trên server)
+                await saveEditorContent();
+            }
+
+            removeMailMergeContextMenu();
+            return;
+        }
+
         const item = me.target.closest('.context-menu-item');
         if (item) {
             if (item.classList.contains('has-submenu')) {
@@ -2131,23 +2179,23 @@ function showMailMergeMenu(x, y, variables) {
 
             const varName = item.getAttribute('data-name');
             const varValue = item.getAttribute('data-value');
-            
+
             restoreSelectionRange();
-            
+
             const span = document.createElement('span');
             span.className = 'mail-merge-tag';
             span.setAttribute('data-variable', varName);
             span.setAttribute('contenteditable', 'true');
             span.textContent = varValue || `{{${varName}}}`;
-            
+
             insertElementAtCursor(span);
-            
+
             // Lưu lại thay đổi tức thì
             await saveEditorContent();
             removeMailMergeContextMenu();
         }
     });
-    
+
     // Đóng menu khi click ra ngoài
     const closeMenu = (ce) => {
         const isClickInsideMenu = menu.contains(ce.target);
@@ -2189,29 +2237,29 @@ function removeMailMergeSubmenu() {
 async function saveEditorContent() {
     const editor = document.getElementById('preview-content-edited');
     if (!editor) return;
-    
+
     const activeProfile = AppStore.getActiveProfile();
     if (!activeProfile) return;
-    
+
     const selectPreview = document.getElementById('select-preview-file');
     if (!selectPreview) return;
-    
+
     const fileId = selectPreview.value;
     const file = activeProfile.files.find(f => f.id === fileId);
     if (!file) return;
-    
+
     const htmlContent = editor.innerHTML;
     if (htmlContent === file.currentContent) return; // Không có thay đổi
-    
+
     try {
         const res = await AppStore.updateFileContent(activeProfile.id, fileId, htmlContent);
         file.currentContent = htmlContent;
-        
+
         // Cập nhật lại danh mục biến hiển thị ở card bên trái nếu có sự đồng bộ ngược từ văn bản soạn thảo
         if (res && res.variables) {
             activeProfile.variables = res.variables;
             activeProfile.files = res.files;
-            
+
             const activeProfileObj = AppStore.getActiveProfile();
             const variablesCard = document.getElementById('card-variables-section');
             if (variablesCard) {
@@ -2230,9 +2278,9 @@ async function saveEditorContent() {
 async function handleImagesUpload(files, profileId) {
     const activeProfile = AppStore.getActiveProfile();
     if (!activeProfile) return;
-    
+
     showToast("Đang tải ảnh minh chứng lên server...", "info");
-    
+
     const promises = Array.from(files).map(async (file) => {
         if (!file.type.startsWith('image/')) {
             showToast(`File "${file.name}" không phải định dạng ảnh được hỗ trợ.`, 'danger');
@@ -2242,7 +2290,7 @@ async function handleImagesUpload(files, profileId) {
             showToast(`Ảnh "${file.name}" vượt quá kích thước 12MB tối đa.`, 'danger');
             return;
         }
-        
+
         try {
             const base64 = await readFileAsDataURL(file);
             await AppStore.uploadImage(profileId, file.name, file.size, base64);
@@ -2251,7 +2299,7 @@ async function handleImagesUpload(files, profileId) {
             showToast(`Lỗi upload: ${err.message}`, 'danger');
         }
     });
-    
+
     await Promise.all(promises);
     if (window.AppWorkspaceState) {
         window.AppWorkspaceState.activeTab = 'images';
@@ -2274,7 +2322,7 @@ function showImageLightbox(src, name) {
         </div>
     `;
     document.body.appendChild(lightbox);
-    
+
     const close = () => lightbox.remove();
     lightbox.querySelector('.lightbox-close-btn').addEventListener('click', close);
     lightbox.addEventListener('click', (e) => {

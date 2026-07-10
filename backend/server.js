@@ -352,7 +352,7 @@ function parseParagraph(paragraphXml, relsMap, zip) {
           customStyle = `width: ${wUnit}; height: ${hUnit}; max-width: 100%; display: block; margin: 10px auto;`;
         }
         
-        imgTags += `<img src="data:${mime};base64,${imgBase64}" style="${customStyle} border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); display: inline-block;" />`;
+        imgTags += `<img src="data:${mime};base64,${imgBase64}" data-rid="${rId}" style="${customStyle} border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); display: inline-block;" />`;
       }
     }
   }
@@ -1048,7 +1048,6 @@ app.put('/api/profiles/:id/variables', async (req, res) => {
 app.put('/api/profiles/:id/files/:fileId', async (req, res) => {
   const { id, fileId } = req.params;
   const { htmlContent, rowIndex } = req.body;
-  const currentRowIndex = rowIndex || 1;
 
   try {
     const profile = await Profile.findById(id);
@@ -1061,115 +1060,15 @@ app.put('/api/profiles/:id/files/:fileId', async (req, res) => {
       return res.status(404).json({ error: "Không tìm thấy tệp tài liệu." });
     }
 
-    // 1. Lưu nội dung của tệp hiện tại trước
+    // 1. Lưu nội dung của tệp hiện tại
     currentFile.currentContent = htmlContent || "";
     await currentFile.save();
 
     let targetProfile = profile;
-    let targetProfileId = id;
-
     if (profile.type === 'edited' && profile.mailMergeId) {
-      targetProfileId = profile.mailMergeId.toString();
-      targetProfile = await Profile.findById(targetProfileId);
-      if (!targetProfile) {
-        return res.status(404).json({ error: "Không tìm thấy Tệp Mail Merge gốc kết nối." });
-      }
-    }
-
-    // 2. Phân tích các thẻ mail-merge-tag trong HTML để đồng bộ ngược về targetProfile.variables
-    const tagRegex = /<span[^>]*class="[^"]*mail-merge-tag[^"]*"[^>]*data-variable="([^"]+)"[^>]*>([\s\S]*?)<\/span>/g;
-    let match;
-    let variablesChanged = false;
-    const updatedVariables = (targetProfile.variables || []).map(v => ({
-      name: v.name,
-      value: v.value,
-      group: v.group || 'Chung'
-    }));
-
-    while ((match = tagRegex.exec(htmlContent)) !== null) {
-      const varName = match[1];
-      const varValue = match[2].replace(/<[^>]*>/g, '').trim(); // Bỏ các thẻ lồng nhau nếu có
-
-      const varIndex = updatedVariables.findIndex(v => v.name === varName);
-      if (varIndex !== -1) {
-        let oldValue = updatedVariables[varIndex].value || "";
-        if (typeof oldValue === 'string' && oldValue.includes('\n')) {
-          const lines = oldValue.split('\n');
-          const rIdx = currentRowIndex - 1;
-          while (lines.length <= rIdx) {
-            lines.push("");
-          }
-          lines[rIdx] = varValue;
-          const newValue = lines.join('\n');
-          if (updatedVariables[varIndex].value !== newValue) {
-            updatedVariables[varIndex].value = newValue;
-            variablesChanged = true;
-          }
-        } else {
-          if (currentRowIndex > 1) {
-            const lines = [oldValue];
-            const rIdx = currentRowIndex - 1;
-            while (lines.length <= rIdx) {
-              lines.push("");
-            }
-            lines[rIdx] = varValue;
-            const newValue = lines.join('\n');
-            updatedVariables[varIndex].value = newValue;
-            variablesChanged = true;
-          } else {
-            if (updatedVariables[varIndex].value !== varValue) {
-              updatedVariables[varIndex].value = varValue;
-              variablesChanged = true;
-            }
-          }
-        }
-      } else {
-        if (currentRowIndex > 1) {
-          const lines = [];
-          const rIdx = currentRowIndex - 1;
-          while (lines.length < rIdx) {
-            lines.push("");
-          }
-          lines.push(varValue);
-          updatedVariables.push({ name: varName, value: lines.join('\n'), group: 'Chung' });
-        } else {
-          updatedVariables.push({ name: varName, value: varValue, group: 'Chung' });
-        }
-        variablesChanged = true;
-      }
-    }
-
-    // 3. Nếu có biến nào thay đổi giá trị, lưu lại targetProfile và đồng bộ giá trị đó sang tất cả các file khác của các hồ sơ kết nối
-    if (variablesChanged) {
-      targetProfile.variables = updatedVariables;
-      await targetProfile.save();
-
-      // Tìm tất cả các hồ sơ có kết nối tới Tệp Mail Merge gốc này
-      const connectedProfiles = await Profile.find({
-        $or: [
-          { _id: targetProfileId },
-          { mailMergeId: targetProfileId }
-        ]
-      });
-      const connectedProfileIds = connectedProfiles.map(cp => cp._id);
-
-      const allFiles = await File.find({ profileId: { $in: connectedProfileIds } });
-      for (const file of allFiles) {
-        let fileContent = file.currentContent || "";
-        for (const variable of targetProfile.variables) {
-          let varDisplayVal = variable.value || "";
-          if (typeof varDisplayVal === 'string' && varDisplayVal.includes('\n')) {
-            const lines = varDisplayVal.split('\n');
-            const rIdx = currentRowIndex - 1;
-            varDisplayVal = rIdx < lines.length ? lines[rIdx].trim() : "";
-          }
-          const regex = new RegExp(`(<span\\b[^>]*data-variable="${variable.name}"[^>]*>)([\\s\\S]*?)(<\\/span>)`, 'g');
-          fileContent = fileContent.replace(regex, `$1${varDisplayVal}$3`);
-        }
-        if (fileContent !== file.currentContent) {
-          file.currentContent = fileContent;
-          await file.save();
-        }
+      const mmProfile = await Profile.findById(profile.mailMergeId);
+      if (mmProfile) {
+        targetProfile = mmProfile;
       }
     }
 
@@ -1185,7 +1084,7 @@ app.put('/api/profiles/:id/files/:fileId', async (req, res) => {
 
     res.json({
       success: true,
-      variables: targetProfile.variables,
+      variables: targetProfile.variables || [],
       files: formattedFiles
     });
   } catch (err) {
@@ -1465,10 +1364,31 @@ app.put('/api/profiles/:id/connect-mailmerge', async (req, res) => {
         const files = await File.find({ profileId: id });
         for (const file of files) {
           let updatedContent = file.currentContent || "";
-          for (const variable of currentVariables) {
-            const regex = new RegExp(`(<span\\b[^>]*data-variable="${variable.name}"[^>]*>)([\\s\\S]*?)(<\\/span>)`, 'g');
-            updatedContent = updatedContent.replace(regex, `$1${variable.value || ""}$3`);
-          }
+          
+          const spanRegex = /<span\b([^>]*)>([\s\S]*?)<\/span>/gi;
+          updatedContent = updatedContent.replace(spanRegex, (match, attrs, pContent) => {
+            if (!attrs.includes('mail-merge-tag')) return match;
+            
+            const varNameMatch = attrs.match(/data-variable="([^"]+)"/i);
+            if (!varNameMatch) return match;
+            const varName = varNameMatch[1];
+            
+            const variable = currentVariables.find(v => v.name === varName);
+            if (!variable) return match;
+            
+            const dataRowMatch = attrs.match(/data-row="(\d+)"/i);
+            const targetRow = dataRowMatch ? parseInt(dataRowMatch[1]) : 1;
+            
+            let varDisplayVal = variable.value || "";
+            if (typeof varDisplayVal === 'string' && varDisplayVal.includes('\n')) {
+              const lines = varDisplayVal.split('\n');
+              const rIdx = targetRow - 1;
+              varDisplayVal = rIdx < lines.length ? lines[rIdx].trim() : "";
+            }
+            
+            return `<span ${attrs}>${varDisplayVal}</span>`;
+          });
+          
           if (updatedContent !== file.currentContent) {
             file.currentContent = updatedContent;
             await file.save();
@@ -1529,13 +1449,296 @@ function getVariableValueForExport(variables, varName, r) {
 // Hàm thay thế các thẻ biến Mail Merge động theo chỉ số dòng (rowNum) dành riêng cho xuất bản hàng loạt
 function replaceVariablesForExport(content, variables, rowNum) {
   if (!content) return "";
-  // Quét các thẻ span mail-merge-tag
-  const spanRegex = /(<span\b[^>]*data-variable="([^"]+)"[^>]*>)([\s\S]*?)(<\/span>)/g;
+  // Quét các thẻ span mail-merge-tag và phân tích data-row
+  const spanRegex = /<span\b([^>]*)>([\s\S]*?)<\/span>/gi;
   
-  return content.replace(spanRegex, (match, pStart, varName, pContent, pEnd) => {
-    const value = getVariableValueForExport(variables, varName, rowNum);
-    return `${pStart}${value}${pEnd}`;
+  return content.replace(spanRegex, (match, attrs, pContent) => {
+    if (!attrs.includes('mail-merge-tag')) return match;
+    
+    const varNameMatch = attrs.match(/data-variable="([^"]+)"/i);
+    if (!varNameMatch) return match;
+    const varName = varNameMatch[1];
+    
+    const dataRowMatch = attrs.match(/data-row="(\d+)"/i);
+    const targetRow = dataRowMatch ? parseInt(dataRowMatch[1]) : rowNum;
+    
+    const value = getVariableValueForExport(variables, varName, targetRow);
+    return `<span ${attrs}>${value}</span>`;
   });
+}
+
+// Biên dịch HTML soạn thảo thành tệp Word XML nhúng vào ZIP Word gốc
+function compileDocxZip(file, profile, r) {
+  const variables = profile.variables || [];
+  
+  // 1. Giải quyết biến Mail Merge và Placeholders trên nội dung HTML
+  let resolvedHtml = file.currentContent || "";
+  
+  // 1.1 Thay thế thẻ span mail-merge-tag
+  const spanRegex = /<span\b([^>]*)>([\s\S]*?)<\/span>/gi;
+  resolvedHtml = resolvedHtml.replace(spanRegex, (match, attrs, pContent) => {
+    if (!attrs.includes('mail-merge-tag')) return match;
+    
+    const varNameMatch = attrs.match(/data-variable="([^"]+)"/i);
+    if (!varNameMatch) return match;
+    const varName = varNameMatch[1];
+    
+    const dataRowMatch = attrs.match(/data-row="(\d+)"/i);
+    const targetRow = dataRowMatch ? parseInt(dataRowMatch[1]) : r;
+    
+    return getVariableValueForExport(variables, varName, targetRow);
+  });
+  
+  // 1.2 Thay thế placeholders {{TEN_BIEN}}
+  const placeholderRegex = /\{\{\s*([^}]+?)\s*\}\}/g;
+  resolvedHtml = resolvedHtml.replace(placeholderRegex, (match, varName) => {
+    return getVariableValueForExport(variables, varName.trim(), r);
+  });
+  
+  // 2. Trích xuất bản vẽ hình ảnh (drawing/shape) từ file gốc
+  let drawingMap = new Map();
+  let drawingsInOrder = [];
+  let originalXml = "";
+  
+  try {
+    if (file.originalBase64) {
+      const originalZip = new AdmZip(Buffer.from(file.originalBase64, 'base64'));
+      originalXml = originalZip.readAsText('word/document.xml') || "";
+      
+      const drawingRegex = /<w:drawing\b[^>]*>[\s\S]*?<\/w:drawing>/gi;
+      let match;
+      while ((match = drawingRegex.exec(originalXml)) !== null) {
+        drawingsInOrder.push(match[0]);
+      }
+      const shapeRegex = /<v:shape\b[^>]*>[\s\S]*?<\/v:shape>/gi;
+      while ((match = shapeRegex.exec(originalXml)) !== null) {
+        drawingsInOrder.push(match[0]);
+      }
+      
+      drawingsInOrder.forEach(block => {
+        const ridMatch = block.match(/\br:(?:embed|id)="([^"]+)"/i) || block.match(/\b(?:embed|id)="([^"]+)"/i);
+        if (ridMatch) {
+          drawingMap.set(ridMatch[1], block);
+        }
+      });
+    }
+  } catch (err) {
+    console.error("Lỗi khi giải nén file gốc để lấy tài nguyên ảnh:", err);
+  }
+  
+  // 3. Biên dịch HTML sang Word XML
+  let imgCount = 0;
+  
+  function compileInlineHtml(html) {
+    let xml = "";
+    let pos = 0;
+    const len = html.length;
+    let bold = false;
+    let italic = false;
+    let underline = false;
+    let color = null;
+    const stateStack = [];
+    
+    while (pos < len) {
+      if (html[pos] === '<') {
+        const endTagPos = html.indexOf('>', pos);
+        if (endTagPos === -1) {
+          xml += renderTextRun(html.substring(pos), bold, italic, underline, color);
+          break;
+        }
+        
+        const tagContent = html.substring(pos + 1, endTagPos).trim();
+        pos = endTagPos + 1;
+        
+        const isClosing = tagContent.startsWith('/');
+        const tagName = (isClosing ? tagContent.substring(1) : tagContent.split(/\s+/)[0]).toLowerCase();
+        
+        if (tagName === 'b' || tagName === 'strong') {
+          bold = !isClosing;
+        } else if (tagName === 'i' || tagName === 'em') {
+          italic = !isClosing;
+        } else if (tagName === 'u') {
+          underline = !isClosing;
+        } else if (tagName === 'br') {
+          xml += '<w:r><w:br/></w:r>';
+        } else if (tagName === 'img') {
+          const ridMatch = tagContent.match(/data-rid="([^"]+)"/i);
+          let drawingXml = null;
+          if (ridMatch) {
+            drawingXml = drawingMap.get(ridMatch[1]);
+          }
+          if (!drawingXml && imgCount < drawingsInOrder.length) {
+            drawingXml = drawingsInOrder[imgCount++];
+          }
+          if (drawingXml) {
+            xml += `<w:r>${drawingXml}</w:r>`;
+          }
+        } else if (tagName === 'span') {
+          if (isClosing) {
+            if (stateStack.length > 0) {
+              const prevState = stateStack.pop();
+              bold = prevState.bold;
+              italic = prevState.italic;
+              underline = prevState.underline;
+              color = prevState.color;
+            }
+          } else {
+            stateStack.push({ bold, italic, underline, color });
+            const styleMatch = tagContent.match(/style="([^"]+)"/i);
+            if (styleMatch) {
+              const styleStr = styleMatch[1];
+              const colorMatch = styleStr.match(/color:\s*#([a-fA-F0-9]{6})/i);
+              if (colorMatch) {
+                color = colorMatch[1];
+              }
+            }
+          }
+        }
+      } else {
+        let nextTagPos = html.indexOf('<', pos);
+        if (nextTagPos === -1) nextTagPos = len;
+        const text = html.substring(pos, nextTagPos);
+        pos = nextTagPos;
+        if (text) {
+          xml += renderTextRun(text, bold, italic, underline, color);
+        }
+      }
+    }
+    return xml;
+  }
+  
+  function renderTextRun(text, bold, italic, underline, color) {
+    let decodedText = text
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&amp;/gi, '&')
+      .replace(/&quot;/gi, '"')
+      .replace(/&apos;/gi, "'");
+      
+    // Áp dụng các thay thế tĩnh từ profile.replacements
+    if (profile.replacements && profile.replacements.length > 0) {
+      for (const rep of profile.replacements) {
+        if (!rep.findText) continue;
+        const normalizedFind = rep.findText.normalize('NFC');
+        const escapedFind = normalizedFind.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+        const regexPattern = escapedFind.replace(/\s+/g, '\\s+');
+        const regex = new RegExp(regexPattern, 'g');
+        decodedText = decodedText.normalize('NFC').replace(regex, rep.replaceText || "");
+      }
+    }
+      
+    return `<w:r><w:rPr>${bold ? '<w:b/>' : ''}${italic ? '<w:i/>' : ''}${underline ? '<w:u w:val="single"/>' : ''}${color ? `<w:color w:val="${color}"/>` : ''}</w:rPr><w:t xml:space="preserve">${escapeXml(decodedText)}</w:t></w:r>`;
+  }
+  
+  function compileTableHtml(tableHtml) {
+    let xml = '<w:tbl>';
+    const hasBorders = !tableHtml.includes('docx-table-borderless');
+    if (hasBorders) {
+      xml += `<w:tblPr><w:tblBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:insideH w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:insideV w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tblBorders></w:tblPr>`;
+    } else {
+      xml += `<w:tblPr><w:tblBorders><w:top w:val="none"/><w:left w:val="none"/><w:bottom w:val="none"/><w:right w:val="none"/><w:insideH w:val="none"/><w:insideV w:val="none"/></w:tblBorders></w:tblPr>`;
+    }
+    
+    const trRegex = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
+    let trMatch;
+    while ((trMatch = trRegex.exec(tableHtml)) !== null) {
+      xml += '<w:tr>';
+      const tdContent = trMatch[1];
+      const tdRegex = /<td\b[^>]*>([\s\S]*?)<\/td>/gi;
+      let tdMatch;
+      while ((tdMatch = tdRegex.exec(tdContent)) !== null) {
+        xml += '<w:tc>';
+        const cellContent = tdMatch[1].trim();
+        if (/<div|<p/i.test(cellContent)) {
+          xml += compileHtmlToWordXml(cellContent);
+        } else {
+          xml += `<w:p>${compileInlineHtml(cellContent)}</w:p>`;
+        }
+        xml += '</w:tc>';
+      }
+      xml += '</w:tr>';
+    }
+    xml += '</w:tbl>';
+    return xml;
+  }
+  
+  function compileParagraphHtml(pTagHtml) {
+    const match = pTagHtml.match(/^(<div|<p)\b([^>]*?)>([\s\S]*?)(<\/div>|<\/p>)$/i);
+    if (!match) return "";
+    const attrs = match[2];
+    const innerHtml = match[3];
+    
+    let alignStyle = "";
+    const styleMatch = attrs.match(/style="([^"]+)"/i);
+    if (styleMatch) {
+      const styleStr = styleMatch[1];
+      const alignMatch = styleStr.match(/text-align:\s*(center|right|justify|left)/i);
+      if (alignMatch) {
+        const alignVal = alignMatch[1].toLowerCase();
+        if (alignVal === 'center') alignStyle = '<w:jc w:val="center"/>';
+        else if (alignVal === 'right') alignStyle = '<w:jc w:val="right"/>';
+        else if (alignVal === 'justify') alignStyle = '<w:jc w:val="both"/>';
+      }
+    }
+    const pPr = alignStyle ? `<w:pPr>${alignStyle}</w:pPr>` : "";
+    const inlineXml = compileInlineHtml(innerHtml);
+    return `<w:p>${pPr}${inlineXml}</w:p>`;
+  }
+  
+  function compileHtmlToWordXml(html) {
+    let xml = "";
+    const blockRegex = /(<table\b[^>]*>[\s\S]*?<\/table>|<div\b[^>]*>[\s\S]*?<\/div>|<p\b[^>]*>[\s\S]*?<\/p>)/gi;
+    let pos = 0;
+    let match;
+    while ((match = blockRegex.exec(html)) !== null) {
+      const blockXml = match[0];
+      const startIndex = match.index;
+      if (startIndex > pos) {
+        const textBetween = html.substring(pos, startIndex).trim();
+        if (textBetween) {
+          xml += `<w:p>${compileInlineHtml(textBetween)}</w:p>`;
+        }
+      }
+      pos = blockRegex.lastIndex;
+      if (blockXml.toLowerCase().startsWith('<table')) {
+        xml += compileTableHtml(blockXml);
+      } else {
+        xml += compileParagraphHtml(blockXml);
+      }
+    }
+    if (pos < html.length) {
+      const remainingText = html.substring(pos).trim();
+      if (remainingText) {
+        xml += `<w:p>${compileInlineHtml(remainingText)}</w:p>`;
+      }
+    }
+    return xml;
+  }
+  
+  const bodyXml = compileHtmlToWordXml(resolvedHtml);
+  
+  let docxZip;
+  if (file.originalBase64) {
+    docxZip = new AdmZip(Buffer.from(file.originalBase64, 'base64'));
+  } else {
+    docxZip = new AdmZip();
+    const relsContent = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`;
+    docxZip.addFile('_rels/.rels', Buffer.from(relsContent, 'utf-8'));
+    
+    const contentTypesContent = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`;
+    docxZip.addFile('[Content_Types].xml', Buffer.from(contentTypesContent, 'utf-8'));
+  }
+  
+  const documentXmlContent = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    ${bodyXml}
+    <w:sectPr/>
+  </w:body>
+</w:document>`;
+  
+  docxZip.updateFile('word/document.xml', Buffer.from(documentXmlContent, 'utf-8'));
+  return docxZip.toBuffer();
 }
 
 // API xuất tệp tin nén ZIP (toàn bộ hoặc chỉ các tệp đã chỉnh sửa)
@@ -1567,12 +1770,11 @@ app.get('/api/profiles/:id/export', async (req, res) => {
     const zip = new AdmZip();
     const variables = profile.variables || [];
 
-    // 1. Kiểm tra xem có cấu trúc bảng Excel hay không (bằng cách tìm biến có hậu tố _[số] hoặc biến nhiều dòng)
+    // 1. Kiểm tra xem có cấu trúc bảng Excel hay không
     const rowSuffixRegex = /^(.*)_(\d+)$/;
     let maxSuffixRowIndex = 0;
     let maxMultiLineRows = 0;
     variables.forEach(v => {
-      // Đếm theo hậu tố _r
       const match = v.name.match(rowSuffixRegex);
       if (match) {
         const rowNum = parseInt(match[2]);
@@ -1580,7 +1782,6 @@ app.get('/api/profiles/:id/export', async (req, res) => {
           maxSuffixRowIndex = rowNum;
         }
       }
-      // Đếm theo dòng giá trị (\n)
       if (v.value && typeof v.value === 'string' && v.value.includes('\n')) {
         const lines = v.value.split('\n').map(l => l.trim());
         if (lines.length > maxMultiLineRows) {
@@ -1594,14 +1795,7 @@ app.get('/api/profiles/:id/export', async (req, res) => {
 
     if (isTableMode) {
       // A. CHẾ ĐỘ XUẤT BẢN HÀNG LOẠT (BATCH GENERATION): Nhân bản tài liệu theo dòng Excel
-      // Lấy danh sách tên biến gốc không có hậu tố _[số]
-      const uniqueVarNames = [...new Set(variables.map(v => {
-        const match = v.name.match(rowSuffixRegex);
-        return match ? match[1] : v.name;
-      }))];
-
       for (let r = 1; r <= maxRowIndex; r++) {
-        // Tìm biến định danh thư mục cho dòng r (Ưu tiên MA_HO_SO hoặc TEN_DON_VI)
         const maHoSoVal = getVariableValueForExport(variables, "MA_HO_SO", r) || getVariableValueForExport(variables, "MA_HS", r);
         const tenDonViVal = getVariableValueForExport(variables, "TEN_DON_VI", r) || getVariableValueForExport(variables, "TEN_CONG_TY", r);
         
@@ -1614,7 +1808,6 @@ app.get('/api/profiles/:id/export', async (req, res) => {
           folderName = `Dong_${r}`;
         }
         
-        // Làm sạch tên thư mục khỏi các ký tự đặc biệt không hợp lệ trên Windows/Linux
         folderName = folderName.replace(/[\/\\?%*:|"<>]/g, '-');
 
         for (const file of filesToExport) {
@@ -1633,49 +1826,10 @@ app.get('/api/profiles/:id/export', async (req, res) => {
           const isDocx = extLower === '.docx';
           const isDoc = extLower === '.doc';
 
-          if ((isDocx || isDoc) && file.originalBase64) {
-            // Khôi phục logic thay thế trực tiếp vào XML của file Word gốc
+          if (isDocx || isDoc) {
             try {
-              const zipBuffer = Buffer.from(file.originalBase64, 'base64');
-              const docxZip = new AdmZip(zipBuffer);
-              let documentXml = docxZip.readAsText('word/document.xml');
-              if (documentXml) {
-                // Tạo replacements động cho dòng r này
-                const replacementsForThisFile = [];
-                
-                // 1. Thêm các replacements tĩnh từ profile.replacements
-                if (profile.replacements && profile.replacements.length > 0) {
-                  profile.replacements.forEach(rep => {
-                    replacementsForThisFile.push({
-                      findText: rep.findText,
-                      replaceText: rep.replaceText
-                    });
-                  });
-                }
-
-                // 2. Thêm các biến Mail Merge động được map theo dòng r
-                uniqueVarNames.forEach(varName => {
-                  const value = getVariableValueForExport(variables, varName, r);
-                  
-                  replacementsForThisFile.push({
-                    findText: `{{${varName}}}`,
-                    replaceText: value
-                  });
-                  replacementsForThisFile.push({
-                    findText: `{{ ${varName} }}`,
-                    replaceText: value
-                  });
-                });
-
-                documentXml = replaceTextInDocxXml(documentXml, replacementsForThisFile);
-                docxZip.updateFile('word/document.xml', Buffer.from(documentXml, 'utf-8'));
-                zip.addFile(zipFilePath, docxZip.toBuffer());
-              } else {
-                // Fallback tạo file docx tối giản nếu không đọc được xml
-                const replacedHtml = replaceVariablesForExport(file.currentContent || "", variables, r);
-                const textOnly = replacedHtml.replace(/<[^>]*>/g, '');
-                zip.addFile(zipFilePath, createMinimalDocx(textOnly));
-              }
+              const docxBuffer = compileDocxZip(file, profile, r);
+              zip.addFile(zipFilePath, docxBuffer);
             } catch (err) {
               console.error(`Lỗi khi xử lý đồng bộ tệp tin Word ${file.name} dòng ${r}:`, err);
               const replacedHtml = replaceVariablesForExport(file.currentContent || "", variables, r);
@@ -1683,7 +1837,6 @@ app.get('/api/profiles/:id/export', async (req, res) => {
               zip.addFile(zipFilePath, createMinimalDocx(textOnly));
             }
           } else {
-            // Tệp văn bản thuần (.txt) hoặc các tệp tin khác
             const replacedHtml = replaceVariablesForExport(file.currentContent || "", variables, r);
             const textOnly = replacedHtml
               .replace(/<br\s*\/?>/gi, '\n')
@@ -1711,52 +1864,16 @@ app.get('/api/profiles/:id/export', async (req, res) => {
         const isDocx = extLower === '.docx';
         const isDoc = extLower === '.doc';
         
-        if ((isDocx || isDoc) && file.originalBase64) {
-          // Khôi phục logic thay thế trực tiếp vào XML của file Word gốc
+        if (isDocx || isDoc) {
           try {
-            const zipBuffer = Buffer.from(file.originalBase64, 'base64');
-            const docxZip = new AdmZip(zipBuffer);
-            let documentXml = docxZip.readAsText('word/document.xml');
-            if (documentXml) {
-              const replacementsForThisFile = [];
-              
-              // 1. Thêm các replacements tĩnh từ profile.replacements
-              if (profile.replacements && profile.replacements.length > 0) {
-                profile.replacements.forEach(rep => {
-                  replacementsForThisFile.push({
-                    findText: rep.findText,
-                    replaceText: rep.replaceText
-                  });
-                });
-              }
-
-              // 2. Thêm các biến Mail Merge động
-              variables.forEach(v => {
-                replacementsForThisFile.push({
-                  findText: `{{${v.name}}}`,
-                  replaceText: v.value || ""
-                });
-                replacementsForThisFile.push({
-                  findText: `{{ ${v.name} }}`,
-                  replaceText: v.value || ""
-                });
-              });
-
-              documentXml = replaceTextInDocxXml(documentXml, replacementsForThisFile);
-              docxZip.updateFile('word/document.xml', Buffer.from(documentXml, 'utf-8'));
-              zip.addFile(exportName, docxZip.toBuffer());
-            } else {
-              // Fallback tạo file docx tối giản nếu không đọc được xml
-              const textOnly = (file.currentContent || "").replace(/<[^>]*>/g, '');
-              zip.addFile(exportName, createMinimalDocx(textOnly));
-            }
+            const docxBuffer = compileDocxZip(file, profile, 1);
+            zip.addFile(exportName, docxBuffer);
           } catch (err) {
             console.error(`Lỗi khi xử lý đồng bộ tệp tin Word ${file.name}:`, err);
             const textOnly = (file.currentContent || "").replace(/<[^>]*>/g, '');
             zip.addFile(exportName, createMinimalDocx(textOnly));
           }
         } else {
-          // Tệp văn bản thuần (.txt) || các tệp tin khác
           const textOnly = (file.currentContent || "")
             .replace(/<br\s*\/?>/gi, '\n')
             .replace(/<\/div>/gi, '\n')
@@ -1769,7 +1886,6 @@ app.get('/api/profiles/:id/export', async (req, res) => {
 
     const zipBuffer = zip.toBuffer();
     
-    // Thiết lập headers gửi file ZIP
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(profile.name)}_export.zip"`);
     res.send(zipBuffer);
