@@ -37,6 +37,7 @@ Bạn bắt buộc phải khởi chạy đồng thời cả Backend và Frontend
    ```bash
    npm run dev
    ```
+
    *Kết quả mong đợi:* Terminal sẽ hiển thị dòng thông báo:
    ```text
    Backend API Server is running on port 5000
