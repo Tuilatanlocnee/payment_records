@@ -118,25 +118,13 @@ h1, h2, h3, h4 {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid rgba(226, 232, 240, 0.8);
-    position: relative; /* Cho phép định vị phần tử giả ::before thương hiệu */
+    position: relative;
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 0 24px;
     z-index: 10;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02), 0 1px 3px rgba(0, 0, 0, 0.01);
-}
-
-/* Đường viền accent thương hiệu MobiFone (75% Xanh Mobi, 25% Đỏ Fone) */
-.app-header::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 4px;
-    background: linear-gradient(90deg, var(--mobi-blue) 0%, var(--mobi-blue) 75%, var(--fone-red) 75%, var(--fone-red) 100%);
-    z-index: 11;
 }
 
 .header-left {
@@ -767,7 +755,7 @@ h1, h2, h3, h4 {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 20px;
-    height: 520px;
+    height: auto; /* Chiều cao tự động giãn theo trình soạn thảo bên trong */
     background-color: #f1f5f9; /* Giả lập không gian kĩ thuật số phẳng */
     padding: 16px;
     border-radius: var(--radius-md);
@@ -786,7 +774,7 @@ h1, h2, h3, h4 {
 .preview-column {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    height: auto; /* Chiều cao tự động giãn theo trình soạn thảo bên trong */
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     overflow: hidden;
@@ -1425,7 +1413,7 @@ form {
     }
     
     .preview-column {
-        height: 300px !important;
+        height: auto !important; /* Đảm bảo tự động co giãn theo nội dung trên thiết bị di động */
     }
     
     /* Tối ưu hóa modal popup trên di động tránh bị sát viền */
@@ -1910,8 +1898,9 @@ form {
 /* Vùng soạn thảo chính (contenteditable) */
 .rich-text-editor {
     min-height: 480px;
-    max-height: 580px;
-    overflow-y: auto;
+    height: auto; /* Tự động co giãn theo nội dung văn bản */
+    max-height: none; /* Bỏ giới hạn chiều cao tối đa để không cần cuộn */
+    overflow-y: visible; /* Cho phép hiển thị toàn bộ nội dung mà không xuất hiện thanh cuộn riêng */
     padding: 40px 50px; /* Margins trang giấy */
     outline: none;
     font-family: 'Times New Roman', Times, serif;

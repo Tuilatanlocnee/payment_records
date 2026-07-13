@@ -225,6 +225,7 @@ window.Components = {
         const isOriginal = profile.type === 'original';
         const isMailMerge = profile.type === 'mailmerge';
         const isEdited = !isOriginal && !isMailMerge;
+        const currentActiveTab = (window.AppWorkspaceState && window.AppWorkspaceState.activeTab) || 'preview';
 
         container.innerHTML = `
             <!-- Tiêu đề chi tiết hồ sơ -->
@@ -285,7 +286,7 @@ window.Components = {
                 const isEdited = !isOriginal && !isMailMerge;
                 const hasFiles = profile.files && profile.files.length > 0;
 
-                const activeTab = (window.AppWorkspaceState && window.AppWorkspaceState.activeTab) || 'preview';
+                const activeTab = isMailMerge ? 'variables' : ((window.AppWorkspaceState && window.AppWorkspaceState.activeTab) || 'preview');
 
                 const isVariablesActive = activeTab === 'variables';
                 const isSearchActive = activeTab === 'search';
@@ -294,6 +295,7 @@ window.Components = {
 
                 return `
                 <!-- Thanh Header Tab -->
+                ${isMailMerge ? '' : `
                 <div class="workspace-tabs-container">
                     <div class="workspace-tabs">
                         <!-- Tab Tài liệu: Hiện cho Hồ sơ gốc và Hồ sơ thanh toán (kể cả khi chưa có file) -->
@@ -323,6 +325,7 @@ window.Components = {
                         </button>
                     </div>
                 </div>
+                `}
 
                 <div class="workspace-tab-content">
                     <!-- Khối 2: Quản lý các biến Mail Merge từ Excel -->
@@ -348,10 +351,28 @@ window.Components = {
                 `;
             })()}
 
-            <!-- Khối 6: Tải xuống hồ sơ hoàn chỉnh -->
-            <div class="card ${isEdited && profile.files && profile.files.length > 0 ? '' : 'hidden'}" id="card-export-section">
-                ${this.renderExportBlock(profile)}
-            </div>
+            <!-- Khối 6: Tải xuống hồ sơ hoàn chỉnh (Tài liệu hoặc Ảnh) -->
+            ${(() => {
+                if (!isEdited) return '';
+                
+                if (currentActiveTab === 'images') {
+                    const hasImages = profile.images && profile.images.length > 0;
+                    return `
+                        <div class="card ${hasImages ? '' : 'hidden'}" id="card-export-images-section">
+                            ${this.renderExportImagesBlock(profile)}
+                        </div>
+                    `;
+                } else if (currentActiveTab === 'preview' || currentActiveTab === 'search') {
+                    const hasFiles = profile.files && profile.files.length > 0;
+                    return `
+                        <div class="card ${hasFiles ? '' : 'hidden'}" id="card-export-section">
+                            ${this.renderExportBlock(profile)}
+                        </div>
+                    `;
+                }
+                
+                return '';
+            })()}
         `;
 
         safeCreateIcons();
@@ -858,12 +879,43 @@ window.Components = {
                     </ul>
                 </div>
 
+
+
                 <!-- Nút xuất bản chính thức -->
                 <div style="display: flex; justify-content: flex-end; align-items: center; gap: 16px;">
                     <span id="export-status-info" style="font-size: 14px; color: var(--text-secondary);"></span>
                     <button class="btn btn-success" id="btn-submit-export" style="height: 48px; padding: 0 28px;">
                         <i data-lucide="download"></i>
                         Tải Xuống Hồ Sơ (.ZIP)
+                    </button>
+                </div>
+            </div>
+        `;
+    },
+
+    /**
+     * Dựng nội dung khu vực Xuất ảnh minh chứng
+     */
+    renderExportImagesBlock(profile) {
+        const imageCount = profile.images ? profile.images.length : 0;
+        if (imageCount === 0) return '';
+
+        return `
+            <div class="card-title">
+                <i data-lucide="download-cloud" style="color: var(--primary-color);"></i>
+                Tải Xuống Ảnh Minh Chứng
+            </div>
+            <div class="export-options-container" style="margin-top: 0; padding-top: 0; border-top: none;">
+                <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 16px;">
+                    Đóng gói toàn bộ <strong>${imageCount} ảnh minh chứng</strong> của hồ sơ này thành một tệp nén ZIP duy nhất để tải xuống máy tính.
+                </p>
+                
+                <!-- Nút xuất bản chính thức -->
+                <div style="display: flex; justify-content: flex-end; align-items: center; gap: 16px;">
+                    <span id="export-images-status-info" style="font-size: 14px; color: var(--text-secondary);"></span>
+                    <button class="btn btn-success" id="btn-submit-export-images" style="height: 48px; padding: 0 28px;">
+                        <i data-lucide="download"></i>
+                        Tải Xuống Ảnh Minh Chứng (.ZIP)
                     </button>
                 </div>
             </div>
@@ -973,27 +1025,7 @@ window.Components = {
             <option value="${file.id}" ${idx === 0 ? 'selected' : ''}>${file.name}</option>
         `).join('');
 
-        const maxRowIndex = this.getMaxRowIndex(profile.variables);
-        const currentPreviewRow = (window.AppWorkspaceState && window.AppWorkspaceState.previewRowIndex) || 1;
-
-        let rowSelectorHtml = '';
-        if (maxRowIndex > 1) {
-            const rowOptions = Array.from({ length: maxRowIndex }, (_, i) => i + 1).map(r => `
-                <option value="${r}" ${r === currentPreviewRow ? 'selected' : ''}>Dòng ${r}</option>
-            `).join('');
-
-            rowSelectorHtml = `
-                <div class="preview-row-selector" style="display: flex; align-items: center; gap: 8px;">
-                    <label for="select-preview-row" style="font-size: 13px; font-weight: 600; white-space: nowrap;">
-                        <i data-lucide="list-ordered" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px; color: var(--primary-color);"></i>
-                        Dòng dữ liệu xem trước:
-                    </label>
-                    <select id="select-preview-row" style="height: 32px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0 8px; font-size: 12px; background-color: var(--bg-primary); color: var(--text-primary); cursor: pointer;">
-                        ${rowOptions}
-                    </select>
-                </div>
-            `;
-        }
+        const rowSelectorHtml = '';
 
         return `
             <div class="card-header-toggle" id="preview-section-toggle" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;">

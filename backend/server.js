@@ -1741,7 +1741,43 @@ function compileDocxZip(file, profile, r) {
   return docxZip.toBuffer();
 }
 
-// API xuất tệp tin nén ZIP (toàn bộ hoặc chỉ các tệp đã chỉnh sửa)
+// API xuất toàn bộ ảnh minh chứng dưới dạng tệp ZIP
+app.get('/api/profiles/:id/export-images', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const profile = await Profile.findById(id);
+    if (!profile) {
+      return res.status(404).json({ error: "Không tìm thấy hồ sơ thanh toán." });
+    }
+
+    const images = await Image.find({ profileId: id }).lean();
+    if (images.length === 0) {
+      return res.status(400).json({ error: "Không có hình ảnh minh chứng nào để xuất." });
+    }
+
+    const zip = new AdmZip();
+    images.forEach(img => {
+      // img.data là chuỗi data URL base64
+      const commaIndex = img.data.indexOf(',');
+      if (commaIndex !== -1) {
+        const base64Data = img.data.substring(commaIndex + 1);
+        const imgBuffer = Buffer.from(base64Data, 'base64');
+        zip.addFile(img.name || `image_${img._id}.png`, imgBuffer);
+      }
+    });
+
+    const zipBuffer = zip.toBuffer();
+    
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(profile.name)}_images.zip"`);
+    res.send(zipBuffer);
+  } catch (err) {
+    console.error("Lỗi khi xuất ảnh minh chứng ZIP:", err);
+    res.status(500).json({ error: "Không thể xuất tệp nén hình ảnh." });
+  }
+});
+
+// API xuất tệp tin nén ZIP (chỉ xuất bản đơn lẻ thông thường cho hồ sơ hiện tại)
 app.get('/api/profiles/:id/export', async (req, res) => {
   const { id } = req.params;
   const { mode } = req.query; // 'all', 'edited' hoặc 'custom'
@@ -1768,119 +1804,50 @@ app.get('/api/profiles/:id/export', async (req, res) => {
     }
 
     const zip = new AdmZip();
-    const variables = profile.variables || [];
-
-    // 1. Kiểm tra xem có cấu trúc bảng Excel hay không
-    const rowSuffixRegex = /^(.*)_(\d+)$/;
-    let maxSuffixRowIndex = 0;
-    let maxMultiLineRows = 0;
-    variables.forEach(v => {
-      const match = v.name.match(rowSuffixRegex);
-      if (match) {
-        const rowNum = parseInt(match[2]);
-        if (rowNum > maxSuffixRowIndex) {
-          maxSuffixRowIndex = rowNum;
-        }
+    
+    // Nạp live variables từ Tệp Mail Merge kết nối nếu có
+    let variables = profile.variables || [];
+    if (profile.type === 'edited' && profile.mailMergeId) {
+      const mmProfile = await Profile.findById(profile.mailMergeId).lean();
+      if (mmProfile) {
+        variables = mmProfile.variables || [];
       }
-      if (v.value && typeof v.value === 'string' && v.value.includes('\n')) {
-        const lines = v.value.split('\n').map(l => l.trim());
-        if (lines.length > maxMultiLineRows) {
-          maxMultiLineRows = lines.length;
-        }
+    }
+
+    // CHẾ ĐỘ XUẤT BẢN ĐƠN LẺ THÔNG THƯỜNG (SINGLE DOCUMENT)
+    for (const file of filesToExport) {
+      const dotIndex = file.name.lastIndexOf('.');
+      const baseName = dotIndex !== -1 ? file.name.substring(0, dotIndex) : file.name;
+      const ext = dotIndex !== -1 ? file.name.substring(dotIndex) : '.txt';
+      
+      const extLower = ext.toLowerCase();
+      let exportExt = ext;
+      if (extLower === '.doc' || extLower === '.docx') {
+        exportExt = '.docx';
       }
-    });
-
-    const maxRowIndex = Math.max(maxSuffixRowIndex, maxMultiLineRows);
-    const isTableMode = maxRowIndex > 0;
-
-    if (isTableMode) {
-      // A. CHẾ ĐỘ XUẤT BẢN HÀNG LOẠT (BATCH GENERATION): Nhân bản tài liệu theo dòng Excel
-      for (let r = 1; r <= maxRowIndex; r++) {
-        const maHoSoVal = getVariableValueForExport(variables, "MA_HO_SO", r) || getVariableValueForExport(variables, "MA_HS", r);
-        const tenDonViVal = getVariableValueForExport(variables, "TEN_DON_VI", r) || getVariableValueForExport(variables, "TEN_CONG_TY", r);
-        
-        let folderName = "";
-        if (maHoSoVal) {
-          folderName = maHoSoVal.trim();
-        } else if (tenDonViVal) {
-          folderName = tenDonViVal.trim();
-        } else {
-          folderName = `Dong_${r}`;
+      const exportName = `${baseName}_hoanthien${exportExt}`;
+      
+      const isDocx = extLower === '.docx';
+      const isDoc = extLower === '.doc';
+      
+      if (isDocx || isDoc) {
+        try {
+          const docxBuffer = compileDocxZip(file, { ...profile.toObject(), variables }, 1);
+          zip.addFile(exportName, docxBuffer);
+        } catch (err) {
+          console.error(`Lỗi khi xử lý đồng bộ tệp tin Word ${file.name}:`, err);
+          const replacedHtml = replaceVariablesForExport(file.currentContent || "", variables, 1);
+          const textOnly = replacedHtml.replace(/<[^>]*>/g, '');
+          zip.addFile(exportName, createMinimalDocx(textOnly));
         }
-        
-        folderName = folderName.replace(/[\/\\?%*:|"<>]/g, '-');
-
-        for (const file of filesToExport) {
-          const dotIndex = file.name.lastIndexOf('.');
-          const baseName = dotIndex !== -1 ? file.name.substring(0, dotIndex) : file.name;
-          const ext = dotIndex !== -1 ? file.name.substring(dotIndex) : '.txt';
-          
-          const extLower = ext.toLowerCase();
-          let exportExt = ext;
-          if (extLower === '.doc' || extLower === '.docx') {
-            exportExt = '.docx';
-          }
-          const exportName = `${baseName}_hoanthien${exportExt}`;
-          const zipFilePath = `${folderName}/${exportName}`;
-
-          const isDocx = extLower === '.docx';
-          const isDoc = extLower === '.doc';
-
-          if (isDocx || isDoc) {
-            try {
-              const docxBuffer = compileDocxZip(file, profile, r);
-              zip.addFile(zipFilePath, docxBuffer);
-            } catch (err) {
-              console.error(`Lỗi khi xử lý đồng bộ tệp tin Word ${file.name} dòng ${r}:`, err);
-              const replacedHtml = replaceVariablesForExport(file.currentContent || "", variables, r);
-              const textOnly = replacedHtml.replace(/<[^>]*>/g, '');
-              zip.addFile(zipFilePath, createMinimalDocx(textOnly));
-            }
-          } else {
-            const replacedHtml = replaceVariablesForExport(file.currentContent || "", variables, r);
-            const textOnly = replacedHtml
-              .replace(/<br\s*\/?>/gi, '\n')
-              .replace(/<\/div>/gi, '\n')
-              .replace(/<\/p>/gi, '\n')
-              .replace(/<[^>]*>/g, '');
-            zip.addFile(zipFilePath, Buffer.from(textOnly, 'utf-8'));
-          }
-        }
-      }
-    } else {
-      // B. CHẾ ĐỘ XUẤT BẢN ĐƠN LẺ THÔNG THƯỜNG (SINGLE DOCUMENT)
-      for (const file of filesToExport) {
-        const dotIndex = file.name.lastIndexOf('.');
-        const baseName = dotIndex !== -1 ? file.name.substring(0, dotIndex) : file.name;
-        const ext = dotIndex !== -1 ? file.name.substring(dotIndex) : '.txt';
-        
-        const extLower = ext.toLowerCase();
-        let exportExt = ext;
-        if (extLower === '.doc' || extLower === '.docx') {
-          exportExt = '.docx';
-        }
-        const exportName = `${baseName}_hoanthien${exportExt}`;
-        
-        const isDocx = extLower === '.docx';
-        const isDoc = extLower === '.doc';
-        
-        if (isDocx || isDoc) {
-          try {
-            const docxBuffer = compileDocxZip(file, profile, 1);
-            zip.addFile(exportName, docxBuffer);
-          } catch (err) {
-            console.error(`Lỗi khi xử lý đồng bộ tệp tin Word ${file.name}:`, err);
-            const textOnly = (file.currentContent || "").replace(/<[^>]*>/g, '');
-            zip.addFile(exportName, createMinimalDocx(textOnly));
-          }
-        } else {
-          const textOnly = (file.currentContent || "")
-            .replace(/<br\s*\/?>/gi, '\n')
-            .replace(/<\/div>/gi, '\n')
-            .replace(/<\/p>/gi, '\n')
-            .replace(/<[^>]*>/g, '');
-          zip.addFile(exportName, Buffer.from(textOnly, 'utf-8'));
-        }
+      } else {
+        const replacedHtml = replaceVariablesForExport(file.currentContent || "", variables, 1);
+        const textOnly = replacedHtml
+          .replace(/<br\s*\/?>/gi, '\n')
+          .replace(/<\/div>/gi, '\n')
+          .replace(/<\/p>/gi, '\n')
+          .replace(/<[^>]*>/g, '');
+        zip.addFile(exportName, Buffer.from(textOnly, 'utf-8'));
       }
     }
 

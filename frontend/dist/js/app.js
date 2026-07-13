@@ -1315,6 +1315,70 @@ function initApp() {
             }
         });
 
+        // Xử lý nút tải xuống ZIP hình ảnh minh chứng bằng fetch + blob
+        detailContainer.addEventListener('click', async (e) => {
+            const btnSubmitImages = e.target.closest('#btn-submit-export-images');
+            if (btnSubmitImages) {
+                // Tránh xử lý trùng lặp nếu nút đang bị vô hiệu hóa
+                if (btnSubmitImages.disabled) return;
+
+                const activeProfile = AppStore.getActiveProfile();
+                if (!activeProfile || !activeProfile.images || activeProfile.images.length === 0) return;
+
+                // Thiết lập trạng thái loading trên nút bấm để khóa click
+                const originalBtnContent = btnSubmitImages.innerHTML;
+                btnSubmitImages.disabled = true;
+                btnSubmitImages.style.opacity = '0.75';
+                btnSubmitImages.style.cursor = 'not-allowed';
+                btnSubmitImages.innerHTML = `<span class="loading-spinner-btn" style="display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: spin 1s ease-in-out infinite; margin-right: 8px; vertical-align: middle;"></span> Đang đóng gói...`;
+
+                showToast("Hệ thống đang nén và đóng gói toàn bộ ảnh minh chứng, vui lòng đợi...", "success");
+
+                const url = `${AppStore.API_BASE}/profiles/${activeProfile.id}/export-images`;
+
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        let errorMsg = "Không thể xuất bản ảnh minh chứng.";
+                        try {
+                            const errData = await response.json();
+                            if (errData && errData.error) errorMsg = errData.error;
+                        } catch (_) { }
+                        throw new Error(errorMsg);
+                    }
+
+                    const blob = await response.blob();
+                    const downloadUrl = window.URL.createObjectURL(blob);
+
+                    // Tạo một thẻ link tải ảo và tự động click để tải file ZIP về
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = downloadUrl;
+                    a.download = `${activeProfile.name}_images.zip`;
+                    document.body.appendChild(a);
+                    a.click();
+
+                    // Giải phóng tài nguyên link tải
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(downloadUrl);
+
+                    showToast("Tải xuống tệp ZIP ảnh minh chứng thành công!", "success");
+                } catch (err) {
+                    console.error("Lỗi khi tải file ZIP ảnh minh chứng:", err);
+                    showToast(`Lỗi xuất bản: ${err.message}`, "danger");
+                } finally {
+                    // Khôi phục lại trạng thái ban đầu của nút bấm
+                    btnSubmitImages.disabled = false;
+                    btnSubmitImages.style.opacity = '1';
+                    btnSubmitImages.style.cursor = 'pointer';
+                    btnSubmitImages.innerHTML = originalBtnContent;
+                    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                        window.lucide.createIcons();
+                    }
+                }
+            }
+        });
+
         // 13. Đã loại bỏ xử lý hiển thị popover xem trước nội dung file khi click
 
         // 14. Sự kiện nhấp chọn Hồ sơ gốc khi chưa có file để sao chép
