@@ -449,69 +449,157 @@ function initApp() {
                         Components.updateFilePreview(fileObj, activeProfile, "");
                     }
                 }
+
+                // Đồng bộ lại ô nhập liệu giá trị của panel gán nhanh
+                const selectVar = document.getElementById('select-quick-var-name');
+                const inputVal = document.getElementById('input-quick-var-value');
+                if (selectVar && inputVal && activeProfile) {
+                    const varName = selectVar.value;
+                    const val = Components.getVariableValue(activeProfile.variables, varName, window.AppWorkspaceState.previewRowIndex);
+                    inputVal.value = val;
+                }
+            }
+
+            // Xử lý thay đổi biến chọn nhanh của panel đồng bộ
+            const selectQuickVar = e.target.closest('#select-quick-var-name');
+            if (selectQuickVar) {
+                const activeProfile = AppStore.getActiveProfile();
+                if (activeProfile) {
+                    const varName = selectQuickVar.value;
+                    const inputVal = document.getElementById('input-quick-var-value');
+                    const rowPicker = document.getElementById('select-quick-var-row-picker');
+
+                    if (inputVal) {
+                        const currentRowIndex = (window.AppWorkspaceState && window.AppWorkspaceState.previewRowIndex) || 1;
+                        const val = Components.getVariableValue(activeProfile.variables, varName, currentRowIndex);
+                        inputVal.value = val;
+                    }
+
+                    // Cập nhật lại các option của select-quick-var-row-picker theo biến mới
+                    if (rowPicker) {
+                        const selectedVarObj = activeProfile.variables.find(v => v.name === varName);
+                        const varLines = (selectedVarObj && typeof selectedVarObj.value === 'string') ? selectedVarObj.value.split('\n') : [];
+                        const maxRows = Components.getMaxRowIndex(activeProfile.variables);
+
+                        let newOptions = '<option value="">Chọn nhanh từ danh sách...</option>';
+                        for (let r = 1; r <= maxRows; r++) {
+                            const lineVal = (r - 1 < varLines.length) ? varLines[r - 1].trim() : '';
+                            newOptions += `<option value="${r}">${lineVal || `(Dòng ${r} trống)`}</option>`;
+                        }
+                        rowPicker.innerHTML = newOptions;
+                    }
+                }
+            }
+
+            // Xử lý chọn nhanh giá trị từ dòng dữ liệu Excel của panel đồng bộ
+            const selectQuickRowPicker = e.target.closest('#select-quick-var-row-picker');
+            if (selectQuickRowPicker) {
+                const activeProfile = AppStore.getActiveProfile();
+                if (activeProfile) {
+                    const selectVar = document.getElementById('select-quick-var-name');
+                    const inputVal = document.getElementById('input-quick-var-value');
+                    const targetRow = parseInt(selectQuickRowPicker.value);
+                    if (selectVar && inputVal && targetRow) {
+                        const varName = selectVar.value;
+                        const val = Components.getVariableValue(activeProfile.variables, varName, targetRow);
+                        inputVal.value = val;
+
+                        // Đồng bộ xem trước theo dòng vừa chọn
+                        if (window.AppWorkspaceState) {
+                            window.AppWorkspaceState.previewRowIndex = targetRow;
+                        }
+                        const selectPreviewRow = document.getElementById('select-preview-row');
+                        if (selectPreviewRow) {
+                            selectPreviewRow.value = targetRow;
+                        }
+                        const selectPreviewFile = document.getElementById('select-preview-file');
+                        const fileId = selectPreviewFile ? selectPreviewFile.value : activeProfile.files[0].id;
+                        const fileObj = activeProfile.files.find(f => f.id === fileId);
+                        if (fileObj) {
+                            Components.updateFilePreview(fileObj, activeProfile, "");
+                        }
+                    }
+                }
             }
         });
 
         // 1. Tạo mục biến Mail Merge mới
         detailContainer.addEventListener('click', async (e) => {
-            const btnCreateGroup = e.target.closest('#btn-create-group');
-            if (btnCreateGroup) {
+            const btnSync = e.target.closest('#btn-submit-quick-var-sync');
+            if (btnSync) {
                 const activeProfile = AppStore.getActiveProfile();
                 if (!activeProfile) return;
 
-                const groupName = prompt("Nhập tên mục Mail Merge mới (ví dụ: Thông tin MobiFone, Chi tiết Hợp đồng):");
-                if (!groupName || groupName.trim() === "") return;
+                const selectVar = document.getElementById('select-quick-var-name');
+                const inputVal = document.getElementById('input-quick-var-value');
+                if (!selectVar || !inputVal) return;
 
-                const nameTrimmed = groupName.trim();
-                const updatedVariables = [...(activeProfile.variables || [])];
-
-                // Kiểm tra trùng nhóm
-                const hasGroup = updatedVariables.some(v => (v.group || 'Chung') === nameTrimmed);
-                if (hasGroup) {
-                    showToast(`Mục "${nameTrimmed}" đã tồn tại.`, "warning");
+                const varName = selectVar.value;
+                const newValue = inputVal.value;
+                if (!varName) {
+                    showToast("Vui lòng chọn biến để đồng bộ.", "warning");
                     return;
                 }
 
-                // Tự động sinh tên trường từ tên nhóm (viết hoa, không dấu, không ký tự đặc biệt)
-                let defaultFieldName = nameTrimmed.toUpperCase()
-                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Bỏ dấu tiếng Việt
-                    .replace(/\s+/g, '_')
-                    .replace(/[^A-Z0-9_]/g, '');
+                // Cập nhật giá trị vào danh sách variables của activeProfile
+                const variables = [...(activeProfile.variables || [])];
+                const variable = variables.find(v => v.name === varName);
+                const currentRowIndex = (window.AppWorkspaceState && window.AppWorkspaceState.previewRowIndex) || 1;
 
-                if (!defaultFieldName || defaultFieldName === "") {
-                    defaultFieldName = "TRUONG_MAU";
+                if (variable) {
+                    let finalVal = newValue;
+                    // Nếu là biến nhiều dòng
+                    if (variable.value && typeof variable.value === 'string' && variable.value.includes('\n')) {
+                        const lines = variable.value.split('\n');
+                        const rIdx = currentRowIndex - 1;
+                        while (lines.length < currentRowIndex) {
+                            lines.push("");
+                        }
+                        lines[rIdx] = newValue;
+                        finalVal = lines.join('\n');
+                    }
+                    variable.value = finalVal;
+                } else {
+                    variables.push({
+                        name: varName,
+                        value: newValue,
+                        group: "Chung"
+                    });
                 }
 
-                let finalFieldName = defaultFieldName;
-                let fieldCount = 1;
-                while (updatedVariables.some(v => v.name === finalFieldName)) {
-                    fieldCount++;
-                    finalFieldName = `${defaultFieldName}_${fieldCount}`;
-                }
-
-                updatedVariables.push({
-                    name: finalFieldName,
-                    value: "",
-                    group: nameTrimmed
-                });
+                btnSync.disabled = true;
+                const originalContent = btnSync.innerHTML;
+                btnSync.innerHTML = `<span class="loading-spinner-btn" style="display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: spin 1s ease-in-out infinite; margin-right: 4px; vertical-align: middle;"></span> Đang đồng bộ...`;
 
                 try {
-                    await AppStore.updateProfileVariables(activeProfile.id, updatedVariables);
-                    showToast(`Đã tạo mục "${nameTrimmed}" thành công!`, "success");
+                    const res = await AppStore.updateProfileVariables(activeProfile.id, variables);
+                    if (res && res.files) {
+                        activeProfile.files = res.files;
+                    }
+                    if (res && res.variables) {
+                        activeProfile.variables = res.variables;
+                    }
+                    showToast(`Đã thay thế biến "${varName}" thành "${newValue}" trên tất cả tài liệu!`, "success");
+
+                    // Render lại để áp dụng thay đổi
                     renderActiveProfile();
                 } catch (err) {
-                    showToast(err.message, "danger");
+                    showToast("Lỗi đồng bộ: " + err.message, "danger");
+                } finally {
+                    btnSync.disabled = false;
+                    btnSync.innerHTML = originalContent;
+                    if (window.safeCreateIcons) window.safeCreateIcons();
                 }
+                return;
             }
         });
 
-        // 2. Thêm trường mới vào mục cụ thể
+        // 1. Thêm biến mới trực tiếp vào danh sách phẳng
         detailContainer.addEventListener('click', async (e) => {
-            const btnAddField = e.target.closest('.btn-add-field-to-group');
-            if (btnAddField) {
-                const groupName = btnAddField.getAttribute('data-group');
+            const btnAddVarFlat = e.target.closest('#btn-add-variable-flat');
+            if (btnAddVarFlat) {
                 const activeProfile = AppStore.getActiveProfile();
-                if (!activeProfile || !groupName) return;
+                if (!activeProfile) return;
 
                 const updatedVariables = [...(activeProfile.variables || [])];
 
@@ -526,83 +614,18 @@ function initApp() {
                 updatedVariables.push({
                     name: newFieldName,
                     value: "",
-                    group: groupName
+                    group: "Chung"
                 });
 
                 try {
                     await AppStore.updateProfileVariables(activeProfile.id, updatedVariables);
-                    showToast("Đã thêm trường mới. Hãy sửa tên trường và nhập giá trị.", "success");
+                    showToast("Đã thêm biến mới thành công. Hãy sửa tên biến và nhập giá trị.", "success");
                     renderActiveProfile();
                 } catch (err) {
                     showToast(err.message, "danger");
                 }
             }
         });
-
-        // 3. Xóa toàn bộ một mục (và tất cả biến thuộc mục đó)
-        detailContainer.addEventListener('click', async (e) => {
-            const btnDeleteGroup = e.target.closest('.btn-delete-group');
-            if (btnDeleteGroup) {
-                const groupName = btnDeleteGroup.getAttribute('data-group');
-                const activeProfile = AppStore.getActiveProfile();
-                if (!activeProfile || !groupName) return;
-
-                if (confirm(`Bạn có chắc chắn muốn xóa mục "${groupName}" và TẤT CẢ các trường bên trong không?`)) {
-                    const updatedVariables = (activeProfile.variables || []).filter(v => (v.group || 'Chung') !== groupName);
-
-                    try {
-                        await AppStore.updateProfileVariables(activeProfile.id, updatedVariables);
-                        showToast(`Đã xóa mục "${groupName}" thành công.`, "success");
-                        renderActiveProfile();
-                    } catch (err) {
-                        showToast(err.message, "danger");
-                    }
-                }
-            }
-        });
-
-        // 4. Sửa tên mục Mail Merge (Đổi tên nhóm biến khi blur contenteditable)
-        detailContainer.addEventListener('blur', async (e) => {
-            const titleSpan = e.target.closest('.group-title-text');
-            if (titleSpan) {
-                const oldGroupName = titleSpan.getAttribute('data-original-group');
-                const newGroupName = titleSpan.textContent.trim();
-                const activeProfile = AppStore.getActiveProfile();
-
-                if (!activeProfile || !oldGroupName || newGroupName === "") {
-                    titleSpan.textContent = oldGroupName; // Khôi phục nếu rỗng
-                    return;
-                }
-
-                if (oldGroupName === newGroupName) return; // Không thay đổi
-
-                const updatedVariables = [...(activeProfile.variables || [])];
-
-                // Kiểm tra trùng nhóm mới
-                const isDuplicate = updatedVariables.some(v => v.group === newGroupName && v.group !== oldGroupName);
-                if (isDuplicate) {
-                    showToast(`Mục "${newGroupName}" đã tồn tại.`, "warning");
-                    titleSpan.textContent = oldGroupName;
-                    return;
-                }
-
-                // Cập nhật group cho các biến
-                updatedVariables.forEach(v => {
-                    if ((v.group || 'Chung') === oldGroupName) {
-                        v.group = newGroupName;
-                    }
-                });
-
-                try {
-                    await AppStore.updateProfileVariables(activeProfile.id, updatedVariables);
-                    showToast(`Đã đổi tên mục thành "${newGroupName}"!`, "success");
-                    renderActiveProfile();
-                } catch (err) {
-                    showToast(err.message, "danger");
-                    titleSpan.textContent = oldGroupName;
-                }
-            }
-        }, true); // Sử dụng capture phase để bắt blur trên contenteditable
 
         // 5. Xóa một trường Mail Merge khỏi danh mục
         detailContainer.addEventListener('click', async (e) => {
@@ -747,14 +770,18 @@ function initApp() {
         });
 
         // B. TRÌNH BIÊN TẬP VĂN BẢN RICH TEXT
-        // 1. Thao tác định dạng văn bản (Bold, Italic, Underline)
+        // 1. Thao tác định dạng văn bản (Bold, Italic, Underline...)
         detailContainer.addEventListener('click', (e) => {
             const btn = e.target.closest('.toolbar-btn');
             if (btn) {
                 e.preventDefault();
                 const command = btn.getAttribute('data-command');
                 document.execCommand(command, false, null);
-                btn.classList.toggle('active');
+
+                // Chỉ toggle class active cho các định dạng kiểu Toggle
+                if (['bold', 'italic', 'underline'].includes(command)) {
+                    btn.classList.toggle('active');
+                }
 
                 const editor = document.getElementById('preview-content-edited');
                 if (editor) editor.focus();
@@ -802,6 +829,36 @@ function initApp() {
                 saveSelectionRange();
                 const rect = btn.getBoundingClientRect();
                 showMailMergeMenu(rect.left, rect.bottom + window.scrollY, activeProfile.variables);
+            }
+        });
+
+        // 4.2. Click Làm mới tài liệu từ thanh công cụ soạn thảo
+        detailContainer.addEventListener('click', async (e) => {
+            const btnRefresh = e.target.closest('#btn-refresh-editor-content');
+            if (btnRefresh) {
+                e.preventDefault();
+                const activeProfile = AppStore.getActiveProfile();
+                if (!activeProfile) return;
+
+                btnRefresh.disabled = true;
+                const originalText = btnRefresh.innerHTML;
+                btnRefresh.innerHTML = `<span class="loading-spinner-btn" style="display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(0,0,0,0.3); border-radius: 50%; border-top-color: #000; animation: spin 1s ease-in-out infinite; margin-right: 4px; vertical-align: middle;"></span> Đang làm mới...`;
+
+                try {
+                    // Tải lại chi tiết hồ sơ từ API
+                    await AppStore.refreshProfile(activeProfile.id);
+
+                    // Render lại toàn bộ giao diện để hiển thị các giá trị mới nhất
+                    renderActiveProfile();
+                    showToast("Đã tải lại nội dung và đồng bộ các biến Mail Merge thành công!", "success");
+                } catch (err) {
+                    console.error("Lỗi khi tải lại tài liệu:", err);
+                    showToast("Không thể tải lại tài liệu: " + err.message, "danger");
+                } finally {
+                    btnRefresh.disabled = false;
+                    btnRefresh.innerHTML = originalText;
+                    if (window.safeCreateIcons) window.safeCreateIcons();
+                }
             }
         });
 
@@ -2029,49 +2086,21 @@ function showMailMergeMenu(x, y, variables) {
         return;
     }
 
-    // Nhóm variables theo group
-    const groups = {};
-    variables.forEach(v => {
-        const groupName = v.group || 'Chung';
-        if (!groups[groupName]) {
-            groups[groupName] = [];
-        }
-        groups[groupName].push(v);
-    });
-
     const menu = document.createElement('div');
     menu.className = 'mail-merge-context-menu';
     menu.style.left = `${x}px`;
     menu.style.top = `${y}px`;
 
+    // Sắp xếp các biến theo thứ tự bảng chữ cái để hiển thị khoa học
+    const sortedVariables = [...variables].sort((a, b) => a.name.localeCompare(b.name));
+
     let itemsHtml = "";
-    Object.keys(groups).sort().forEach(groupName => {
-        // Thêm tiêu đề nhóm
+    sortedVariables.forEach(v => {
         itemsHtml += `
-            <div class="context-menu-group-title">
-                <i data-lucide="folder" style="width: 12px; height: 12px; display: inline-block;"></i>
-                <span>${groupName}</span>
+            <div class="context-menu-item" data-name="${v.name}">
+                <span class="var-name" style="font-weight: 500;">${v.name}</span>
             </div>
         `;
-        // Thêm các biến
-        groups[groupName].forEach(v => {
-            const hasSub = v.value && typeof v.value === 'string' && v.value.includes('\n');
-            if (hasSub) {
-                itemsHtml += `
-                    <div class="context-menu-item has-submenu" data-name="${v.name}" data-value="${v.value}">
-                        <span class="var-name">${v.name}</span>
-                        <span class="var-val" style="color: var(--primary-color); font-weight: bold;">chọn dòng ▸</span>
-                    </div>
-                `;
-            } else {
-                itemsHtml += `
-                    <div class="context-menu-item" data-name="${v.name}" data-value="${v.value || ''}">
-                        <span class="var-name">${v.name}</span>
-                        <span class="var-val" title="${v.value || ''}">${v.value || '(Trống)'}</span>
-                    </div>
-                `;
-            }
-        });
     });
 
     menu.innerHTML = `
@@ -2091,104 +2120,6 @@ function showMailMergeMenu(x, y, variables) {
         window.safeCreateIcons();
     }
 
-    // Biến lưu trữ active state của submenu để đóng khi click ra ngoài
-    let activeSubmenu = null;
-
-    // Hàm render submenu
-    const renderSubmenu = (item, varName, varValue) => {
-        removeMailMergeSubmenu();
-
-        const rect = item.getBoundingClientRect();
-        const submenu = document.createElement('div');
-        submenu.className = 'mail-merge-submenu';
-
-        // Định vị submenu
-        let leftPos = rect.right + window.scrollX + 2;
-        // Nếu submenu tràn mép phải màn hình, hiển thị bên trái menu chính
-        if (leftPos + 260 > window.innerWidth) {
-            leftPos = rect.left + window.scrollX - 242;
-        }
-        submenu.style.left = `${leftPos}px`;
-        submenu.style.top = `${rect.top + window.scrollY}px`;
-
-        const lines = varValue.split('\n').map(l => l.trim());
-        let subItemsHtml = "";
-        lines.forEach((line, lineIdx) => {
-            const rowNum = lineIdx + 1;
-            subItemsHtml += `
-                <div class="submenu-item" data-row="${rowNum}" data-value="${line}">
-                    <span class="row-num">Dòng ${rowNum}:</span>
-                    <span class="row-val" title="${line}">${line || '(Trống)'}</span>
-                </div>
-            `;
-        });
-
-        submenu.innerHTML = subItemsHtml;
-        document.body.appendChild(submenu);
-        activeSubmenu = submenu;
-
-        // Đăng ký sự kiện click chọn dòng trong submenu
-        submenu.addEventListener('click', async (se) => {
-            const subItem = se.target.closest('.submenu-item');
-            if (subItem) {
-                const rowNum = parseInt(subItem.getAttribute('data-row')) || 1;
-                const lineVal = subItem.getAttribute('data-value');
-
-                restoreSelectionRange();
-
-                // Chèn thẻ span Mail Merge với giá trị hiển thị tương ứng của dòng được chọn, lưu thuộc tính data-row
-                const span = document.createElement('span');
-                span.className = 'mail-merge-tag';
-                span.setAttribute('data-variable', varName);
-                span.setAttribute('data-row', rowNum); // Gán chỉ mục dòng cố định
-                span.setAttribute('contenteditable', 'true');
-                span.textContent = lineVal || `{{${varName}}}`;
-
-                insertElementAtCursor(span);
-
-                // Lưu lại thay đổi tức thì vào Database (để file.currentContent chứa thẻ span mới)
-                await saveEditorContent();
-
-                // Tự động đồng bộ dropdown dòng xem trước sang dòng vừa chọn
-                if (window.AppWorkspaceState) {
-                    window.AppWorkspaceState.previewRowIndex = rowNum;
-                }
-                const selectRow = document.getElementById('select-preview-row');
-                if (selectRow) {
-                    selectRow.value = rowNum;
-                }
-
-                // Cập nhật lại toàn bộ tài liệu theo dòng preview mới (đọc nội dung mới đã lưu ở trên)
-                const activeProfile = AppStore.getActiveProfile();
-                if (activeProfile) {
-                    const selectPreviewFile = document.getElementById('select-preview-file');
-                    const fileId = selectPreviewFile ? selectPreviewFile.value : activeProfile.files[0].id;
-                    const fileObj = activeProfile.files.find(f => f.id === fileId);
-                    if (fileObj) {
-                        Components.updateFilePreview(fileObj, activeProfile, "");
-                    }
-                }
-
-                removeMailMergeContextMenu();
-            }
-        });
-    };
-
-    // Theo dõi sự kiện mouseover và click trên các menu items
-    menu.addEventListener('mouseover', (me) => {
-        const item = me.target.closest('.context-menu-item');
-        if (item) {
-            if (item.classList.contains('has-submenu')) {
-                const varName = item.getAttribute('data-name');
-                const varValue = item.getAttribute('data-value');
-                renderSubmenu(item, varName, varValue);
-            } else {
-                // Di chuột qua item không có submenu thì đóng submenu hiện tại
-                removeMailMergeSubmenu();
-            }
-        }
-    });
-
     // Sự kiện click trên menu chính
     menu.addEventListener('click', async (me) => {
         const btnCreateDirect = me.target.closest('.btn-create-var-direct');
@@ -2206,24 +2137,29 @@ function showMailMergeMenu(x, y, variables) {
                 return;
             }
 
-            restoreSelectionRange();
-
-            const span = document.createElement('span');
-            span.className = 'mail-merge-tag';
-            span.setAttribute('data-variable', cleanVarName);
-            span.setAttribute('contenteditable', 'true');
-            span.textContent = `{{${cleanVarName}}}`;
-
-            insertElementAtCursor(span);
-
             if (activeProfile) {
                 activeProfile.variables.push({
                     name: cleanVarName,
                     value: "",
                     group: "Chung"
                 });
-                // Lưu lại editor content (sẽ tự động thêm biến mới trên server)
-                await saveEditorContent();
+                // Gọi API lưu và đồng bộ danh sách biến mới lên server
+                try {
+                    const res = await AppStore.updateProfileVariables(activeProfile.id, activeProfile.variables);
+                    if (res && res.variables) {
+                        activeProfile.variables = res.variables;
+                    }
+                    if (res && res.files) {
+                        activeProfile.files = res.files;
+                    }
+                    showToast(`Đã tạo biến "${cleanVarName}" thành công!`, "success");
+                } catch (err) {
+                    console.error("Lỗi khi đồng bộ biến mới lên server:", err);
+                    showToast("Lỗi đồng bộ biến mới lên máy chủ.", "danger");
+                }
+
+                // Render lại toàn bộ giao diện để cập nhật biến mới ở tất cả các vị trí
+                renderActiveProfile();
             }
 
             removeMailMergeContextMenu();
@@ -2232,17 +2168,7 @@ function showMailMergeMenu(x, y, variables) {
 
         const item = me.target.closest('.context-menu-item');
         if (item) {
-            if (item.classList.contains('has-submenu')) {
-                // Biến có submenu: click sẽ kích hoạt render/focus submenu thay vì chèn trực tiếp dính chùm
-                me.stopPropagation();
-                const varName = item.getAttribute('data-name');
-                const varValue = item.getAttribute('data-value');
-                renderSubmenu(item, varName, varValue);
-                return;
-            }
-
             const varName = item.getAttribute('data-name');
-            const varValue = item.getAttribute('data-value');
 
             restoreSelectionRange();
 
@@ -2250,7 +2176,7 @@ function showMailMergeMenu(x, y, variables) {
             span.className = 'mail-merge-tag';
             span.setAttribute('data-variable', varName);
             span.setAttribute('contenteditable', 'true');
-            span.textContent = varValue || `{{${varName}}}`;
+            span.textContent = `{{${varName}}}`;
 
             insertElementAtCursor(span);
 
@@ -2263,8 +2189,7 @@ function showMailMergeMenu(x, y, variables) {
     // Đóng menu khi click ra ngoài
     const closeMenu = (ce) => {
         const isClickInsideMenu = menu.contains(ce.target);
-        const isClickInsideSubmenu = activeSubmenu && activeSubmenu.contains(ce.target);
-        if (!isClickInsideMenu && !isClickInsideSubmenu) {
+        if (!isClickInsideMenu) {
             removeMailMergeContextMenu();
             document.removeEventListener('click', closeMenu);
         }

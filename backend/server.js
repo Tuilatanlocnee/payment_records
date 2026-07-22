@@ -93,7 +93,7 @@ function escapeXml(unsafe) {
 // Thay thế văn bản cấp độ paragraph XML của Word bằng cách chỉ chỉnh sửa nội dung thẻ <w:t>
 function replaceInParagraphs(xml, findText, replaceText) {
   const paragraphRegex = /(<w:p\b[^>]*>)([\s\S]*?)(<\/w:p>)/g;
-  
+
   return xml.replace(paragraphRegex, (match, pStart, pContent, pEnd) => {
     // 1. Tìm tất cả các thẻ <w:t> trong đoạn văn này
     const tTagRegex = /(<w:t\b[^>]*>)([\s\S]*?)(<\/w:t>)/g;
@@ -109,15 +109,15 @@ function replaceInParagraphs(xml, findText, replaceText) {
         length: tMatch[0].length
       });
     }
-    
+
     if (tTags.length === 0) {
       return match;
     }
-    
+
     // 2. Tái cấu trúc văn bản thuần và lập chỉ mục offsets
     let decodedTexts = tTags.map(tag => decodeXmlEntities(tag.content).normalize('NFC'));
     let fullParagraphText = decodedTexts.join('');
-    
+
     let currentOffset = 0;
     tTags.forEach((tag, idx) => {
       tag.textStart = currentOffset;
@@ -125,12 +125,12 @@ function replaceInParagraphs(xml, findText, replaceText) {
       tag.decodedText = decodedTexts[idx];
       currentOffset = tag.textEnd;
     });
-    
+
     // 3. Tìm tất cả vị trí khớp của cụm từ cần tìm
     const escapedFind = findText.normalize('NFC').replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
     const regexPattern = escapedFind.replace(/\s+/g, '\\s+');
     const regex = new RegExp(regexPattern, 'g');
-    
+
     let matchRanges = [];
     let regexMatch;
     while ((regexMatch = regex.exec(fullParagraphText)) !== null) {
@@ -139,27 +139,27 @@ function replaceInParagraphs(xml, findText, replaceText) {
         end: regexMatch.index + regexMatch[0].length
       });
     }
-    
+
     if (matchRanges.length === 0) {
       return match;
     }
-    
+
     // Sắp xếp các khoảng khớp từ phải qua trái (giảm dần) để tránh lệch chỉ mục
     matchRanges.sort((a, b) => b.start - a.start);
-    
+
     // 4. Áp dụng thay thế lên từng khoảng khớp
     for (const range of matchRanges) {
       const { start, end } = range;
       const overlappingTags = tTags.filter(tag => tag.textStart < end && tag.textEnd > start);
-      
+
       if (overlappingTags.length === 0) continue;
-      
+
       const firstTag = overlappingTags[0];
       const beforeText = firstTag.decodedText.substring(0, Math.max(0, start - firstTag.textStart));
       const afterText = firstTag.textEnd >= end ? firstTag.decodedText.substring(end - firstTag.textStart) : "";
-      
+
       firstTag.decodedText = beforeText + replaceText + afterText;
-      
+
       for (let i = 1; i < overlappingTags.length; i++) {
         const tag = overlappingTags[i];
         if (i === overlappingTags.length - 1 && tag.textEnd >= end) {
@@ -168,7 +168,7 @@ function replaceInParagraphs(xml, findText, replaceText) {
           tag.decodedText = "";
         }
       }
-      
+
       // Cập nhật lại offsets của các tag sau khi thay đổi độ dài text
       let offset = 0;
       for (const tag of tTags) {
@@ -177,7 +177,7 @@ function replaceInParagraphs(xml, findText, replaceText) {
         offset = tag.textEnd;
       }
     }
-    
+
     // 5. Dựng lại pContent mới từ danh sách tTags đã chỉnh sửa
     let newPContent = "";
     let lastIdx = 0;
@@ -187,7 +187,7 @@ function replaceInParagraphs(xml, findText, replaceText) {
       lastIdx = tag.index + tag.length;
     }
     newPContent += pContent.substring(lastIdx);
-    
+
     return `${pStart}${newPContent}${pEnd}`;
   });
 }
@@ -195,15 +195,15 @@ function replaceInParagraphs(xml, findText, replaceText) {
 // Hàm chính xử lý tìm kiếm và thay thế trong XML của tệp Word (.docx)
 function replaceTextInDocxXml(documentXml, replacements) {
   let updatedXml = documentXml;
-  
+
   for (const rep of replacements) {
     if (!rep.findText) continue;
     const findText = rep.findText.normalize('NFC');
     const replaceText = (rep.replaceText || "").normalize('NFC');
-    
+
     const xmlFind = escapeXml(findText);
     const xmlReplace = escapeXml(replaceText);
-    
+
     // Nếu cụm từ khớp trực tiếp (không bị ngắt dòng hay tag chen ngang), thay thế nhanh
     if (updatedXml.includes(xmlFind)) {
       const escapedFind = xmlFind.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -214,7 +214,7 @@ function replaceTextInDocxXml(documentXml, replacements) {
       updatedXml = replaceInParagraphs(updatedXml, findText, replaceText);
     }
   }
-  
+
   return updatedXml;
 }
 
@@ -222,14 +222,14 @@ function replaceTextInDocxXml(documentXml, replacements) {
 function createMinimalDocx(text) {
   try {
     const zip = new AdmZip();
-    
+
     // 1. _rels/.rels
     const relsContent = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
 </Relationships>`;
     zip.addFile('_rels/.rels', Buffer.from(relsContent, 'utf-8'));
-    
+
     // 2. [Content_Types].xml
     const contentTypesContent = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/types">
@@ -238,13 +238,13 @@ function createMinimalDocx(text) {
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
 </Types>`;
     zip.addFile('[Content_Types].xml', Buffer.from(contentTypesContent, 'utf-8'));
-    
+
     // 3. word/document.xml
     const paragraphs = (text || "").split('\n').map(line => {
       const escapedLine = escapeXml(line.trim());
       return `<w:p><w:r><w:t>${escapedLine}</w:t></w:r></w:p>`;
     }).join('');
-    
+
     const documentXmlContent = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -253,7 +253,7 @@ function createMinimalDocx(text) {
   </w:body>
 </w:document>`;
     zip.addFile('word/document.xml', Buffer.from(documentXmlContent, 'utf-8'));
-    
+
     return zip.toBuffer();
   } catch (err) {
     console.error("Lỗi khi sinh tệp Word tối giản:", err);
@@ -268,13 +268,13 @@ function parseParagraph(paragraphXml, relsMap, zip) {
   if (!match) return "";
   const paragraphContent = match[1];
   let paragraphText = "";
-  
+
   let runMatch;
   const localRunRegex = /<w:r\b[^>]*>([\s\S]*?)<\/w:r>/g;
-  
+
   while ((runMatch = localRunRegex.exec(paragraphContent)) !== null) {
     const runXml = runMatch[1];
-    
+
     // Trích xuất text và ngắt dòng trong run
     const cleanRunXml = runXml
       .replace(/<w:br\b[^>]*\/>/g, '\n')
@@ -287,7 +287,7 @@ function parseParagraph(paragraphXml, relsMap, zip) {
       paragraphText += textMatch[1];
     }
   }
-  
+
   // Trích xuất hình ảnh dựa trên các relationship ID có trong paragraph
   let imgTags = "";
   const attrRegex = /=\s*["']([^"']+)["']/g;
@@ -311,11 +311,11 @@ function parseParagraph(paragraphXml, relsMap, zip) {
         else if (ext === 'gif') mime = 'image/gif';
         else if (ext === 'svg') mime = 'image/svg+xml';
         const imgBase64 = imgBuffer.toString('base64');
-        
+
         // Tìm kích thước cx, cy của hình ảnh cụ thể rId này
         let widthPt = null;
         let heightPt = null;
-        
+
         // Tìm w:drawing chứa rId này
         const drawingRegex = new RegExp(`<w:drawing\\b[^>]*>(?:(?!<\\/w:drawing>)[\\s\\S])*?r:embed="${rId}"[\\s\\S]*?<\\/w:drawing>`, 'i');
         const drawingMatch = paragraphContent.match(drawingRegex);
@@ -344,19 +344,19 @@ function parseParagraph(paragraphXml, relsMap, zip) {
             }
           }
         }
-        
+
         let customStyle = "max-width: 100%; height: auto; display: block; margin: 10px auto;";
         if (widthPt && heightPt) {
           const wUnit = typeof widthPt === 'number' ? widthPt + 'pt' : widthPt;
           const hUnit = typeof heightPt === 'number' ? heightPt + 'pt' : heightPt;
           customStyle = `width: ${wUnit}; height: ${hUnit}; max-width: 100%; display: block; margin: 10px auto;`;
         }
-        
+
         imgTags += `<img src="data:${mime};base64,${imgBase64}" data-rid="${rId}" style="${customStyle} border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); display: inline-block;" />`;
       }
     }
   }
-  
+
   // Trích xuất thuộc tính căn lề của paragraph từ XML
   let alignStyle = "";
   const pPrMatch = paragraphXml.match(/<w:pPr\b[^>]*>([\s\S]*?)<\/w:pPr>/);
@@ -370,10 +370,10 @@ function parseParagraph(paragraphXml, relsMap, zip) {
     }
   }
   const styleAttr = alignStyle ? ` style="${alignStyle}"` : "";
-  
+
   paragraphText += imgTags;
   const contentText = paragraphText.trim() === "" ? "<br>" : decodeXmlEntities(paragraphText).normalize('NFC');
-  
+
   return `<div${styleAttr}>${contentText}</div>`;
 }
 
@@ -404,7 +404,7 @@ function parseTable(tableXml, relsMap, zip) {
   // Kiểm tra thuộc tính đường viền bảng từ XML để phân loại bảng có viền/không viền
   const hasBorders = tableXml.includes('<w:tblBorders') && !tableXml.includes('w:val="none"');
   const tableClass = hasBorders ? 'docx-table' : 'docx-table docx-table-borderless';
-  
+
   return `<table class="${tableClass}"><tbody>${rowsHtml.join('')}</tbody></table>`;
 }
 
@@ -452,7 +452,7 @@ function parseDocxToText(buffer) {
         elements.push(parseTable(elementXml, relsMap, zip));
       }
     }
-    
+
     return elements.join('\n');
   } catch (error) {
     console.error("Lỗi khi phân tích tệp .docx:", error);
@@ -487,7 +487,7 @@ app.get('/api/profiles', async (req, res) => {
   try {
     const dbProfiles = await Profile.find().sort({ createdAt: -1 }).lean();
     const dbSetting = await Setting.findOne({ key: 'activeProfileId' }).lean();
-    
+
     // Ghép files và images tương ứng vào từng profile
     const profilesWithFiles = await Promise.all(dbProfiles.map(async (p) => {
       const files = await File.find({ profileId: p._id }).lean();
@@ -593,7 +593,7 @@ app.post('/api/profiles', async (req, res) => {
       replacements: []
     });
     const savedProfile = await newProfile.save();
-    
+
     // Nếu là hồ sơ chỉnh sửa từ hồ sơ gốc, tiến hành sao chép các tệp tài liệu
     let clonedFilesCount = 0;
     if (type === 'edited' && originalProfileId) {
@@ -654,7 +654,7 @@ app.delete('/api/profiles/:id', async (req, res) => {
     await Profile.findByIdAndDelete(id);
     await File.deleteMany({ profileId: id });
     await Image.deleteMany({ profileId: id }); // Xóa sạch các ảnh minh chứng thuộc hồ sơ
-    
+
     // Nếu hồ sơ bị xóa đang active, reset activeProfileId
     const dbSetting = await Setting.findOne({ key: 'activeProfileId' });
     if (dbSetting && dbSetting.value === id) {
@@ -690,7 +690,7 @@ app.post('/api/profiles/:id/files', async (req, res) => {
     let finalContent = content || "";
     let originalBase64 = null;
     const lowercaseName = fileName.toLowerCase();
-    
+
     // Kiểm tra định dạng file và chặn file .doc cũ
     if (lowercaseName.endsWith('.doc')) {
       return res.status(400).json({ error: "Hệ thống đã chuẩn hóa chỉ nhận file .docx. Vui lòng Save As tài liệu của bạn sang định dạng .docx trước khi tải lên." });
@@ -734,7 +734,7 @@ app.post('/api/profiles/:id/files', async (req, res) => {
     });
 
     const savedFile = await newFile.save();
-    
+
     // Đặt trạng thái hồ sơ về "new"
     profile.status = "new";
     await profile.save();
@@ -934,7 +934,7 @@ app.put('/api/profiles/:id/variables', async (req, res) => {
               for (const [oldName, newName] of renameMap.entries()) {
                 const oldXmlPattern1 = `{{${oldName}}}`;
                 const oldXmlPattern2 = `{{ ${oldName} }}`;
-                
+
                 if (documentXml.includes(oldXmlPattern1) || documentXml.includes(oldXmlPattern2) || documentXml.includes(oldName)) {
                   documentXml = replaceInParagraphs(documentXml, oldXmlPattern1, `{{${newName}}}`);
                   documentXml = replaceInParagraphs(documentXml, oldXmlPattern2, `{{ ${newName} }}`);
@@ -1196,7 +1196,7 @@ app.post('/api/profiles/:id/replace', async (req, res) => {
         const escapedFind = normalizedFind.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
         const regexPattern = escapedFind.replace(/\s+/g, '\\s+');
         const regex = new RegExp(regexPattern, 'g');
-        
+
         file.currentContent = normalizedContent.replace(regex, replaceText);
         await file.save();
       }
@@ -1300,7 +1300,7 @@ app.post('/api/profiles/:id/undo-replace', async (req, res) => {
       const normalizedContent = (file.currentContent || '').normalize('NFC');
       const normalizedReplace = replaceText.normalize('NFC');
       const cleanString = (str) => (str || '').normalize('NFC').toLowerCase().replace(/\s+/g, ' ');
-      
+
       if (cleanString(normalizedContent).includes(cleanString(normalizedReplace))) {
         const escapedReplace = normalizedReplace.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
         const regexPattern = escapedReplace.replace(/\s+/g, '\\s+');
@@ -1364,31 +1364,31 @@ app.put('/api/profiles/:id/connect-mailmerge', async (req, res) => {
         const files = await File.find({ profileId: id });
         for (const file of files) {
           let updatedContent = file.currentContent || "";
-          
+
           const spanRegex = /<span\b([^>]*)>([\s\S]*?)<\/span>/gi;
           updatedContent = updatedContent.replace(spanRegex, (match, attrs, pContent) => {
             if (!attrs.includes('mail-merge-tag')) return match;
-            
+
             const varNameMatch = attrs.match(/data-variable="([^"]+)"/i);
             if (!varNameMatch) return match;
             const varName = varNameMatch[1];
-            
+
             const variable = currentVariables.find(v => v.name === varName);
             if (!variable) return match;
-            
+
             const dataRowMatch = attrs.match(/data-row="(\d+)"/i);
             const targetRow = dataRowMatch ? parseInt(dataRowMatch[1]) : 1;
-            
+
             let varDisplayVal = variable.value || "";
             if (typeof varDisplayVal === 'string' && varDisplayVal.includes('\n')) {
               const lines = varDisplayVal.split('\n');
               const rIdx = targetRow - 1;
               varDisplayVal = rIdx < lines.length ? lines[rIdx].trim() : "";
             }
-            
+
             return `<span ${attrs}>${varDisplayVal}</span>`;
           });
-          
+
           if (updatedContent !== file.currentContent) {
             file.currentContent = updatedContent;
             await file.save();
@@ -1451,17 +1451,17 @@ function replaceVariablesForExport(content, variables, rowNum) {
   if (!content) return "";
   // Quét các thẻ span mail-merge-tag và phân tích data-row
   const spanRegex = /<span\b([^>]*)>([\s\S]*?)<\/span>/gi;
-  
+
   return content.replace(spanRegex, (match, attrs, pContent) => {
     if (!attrs.includes('mail-merge-tag')) return match;
-    
+
     const varNameMatch = attrs.match(/data-variable="([^"]+)"/i);
     if (!varNameMatch) return match;
     const varName = varNameMatch[1];
-    
+
     const dataRowMatch = attrs.match(/data-row="(\d+)"/i);
     const targetRow = dataRowMatch ? parseInt(dataRowMatch[1]) : rowNum;
-    
+
     const value = getVariableValueForExport(variables, varName, targetRow);
     return `<span ${attrs}>${value}</span>`;
   });
@@ -1470,41 +1470,41 @@ function replaceVariablesForExport(content, variables, rowNum) {
 // Biên dịch HTML soạn thảo thành tệp Word XML nhúng vào ZIP Word gốc
 function compileDocxZip(file, profile, r) {
   const variables = profile.variables || [];
-  
+
   // 1. Giải quyết biến Mail Merge và Placeholders trên nội dung HTML
   let resolvedHtml = file.currentContent || "";
-  
+
   // 1.1 Thay thế thẻ span mail-merge-tag
   const spanRegex = /<span\b([^>]*)>([\s\S]*?)<\/span>/gi;
   resolvedHtml = resolvedHtml.replace(spanRegex, (match, attrs, pContent) => {
     if (!attrs.includes('mail-merge-tag')) return match;
-    
+
     const varNameMatch = attrs.match(/data-variable="([^"]+)"/i);
     if (!varNameMatch) return match;
     const varName = varNameMatch[1];
-    
+
     const dataRowMatch = attrs.match(/data-row="(\d+)"/i);
     const targetRow = dataRowMatch ? parseInt(dataRowMatch[1]) : r;
-    
+
     return getVariableValueForExport(variables, varName, targetRow);
   });
-  
+
   // 1.2 Thay thế placeholders {{TEN_BIEN}}
   const placeholderRegex = /\{\{\s*([^}]+?)\s*\}\}/g;
   resolvedHtml = resolvedHtml.replace(placeholderRegex, (match, varName) => {
     return getVariableValueForExport(variables, varName.trim(), r);
   });
-  
+
   // 2. Trích xuất bản vẽ hình ảnh (drawing/shape) từ file gốc
   let drawingMap = new Map();
   let drawingsInOrder = [];
   let originalXml = "";
-  
+
   try {
     if (file.originalBase64) {
       const originalZip = new AdmZip(Buffer.from(file.originalBase64, 'base64'));
       originalXml = originalZip.readAsText('word/document.xml') || "";
-      
+
       const drawingRegex = /<w:drawing\b[^>]*>[\s\S]*?<\/w:drawing>/gi;
       let match;
       while ((match = drawingRegex.exec(originalXml)) !== null) {
@@ -1514,7 +1514,7 @@ function compileDocxZip(file, profile, r) {
       while ((match = shapeRegex.exec(originalXml)) !== null) {
         drawingsInOrder.push(match[0]);
       }
-      
+
       drawingsInOrder.forEach(block => {
         const ridMatch = block.match(/\br:(?:embed|id)="([^"]+)"/i) || block.match(/\b(?:embed|id)="([^"]+)"/i);
         if (ridMatch) {
@@ -1525,10 +1525,10 @@ function compileDocxZip(file, profile, r) {
   } catch (err) {
     console.error("Lỗi khi giải nén file gốc để lấy tài nguyên ảnh:", err);
   }
-  
+
   // 3. Biên dịch HTML sang Word XML
   let imgCount = 0;
-  
+
   function compileInlineHtml(html) {
     let xml = "";
     let pos = 0;
@@ -1538,7 +1538,7 @@ function compileDocxZip(file, profile, r) {
     let underline = false;
     let color = null;
     const stateStack = [];
-    
+
     while (pos < len) {
       if (html[pos] === '<') {
         const endTagPos = html.indexOf('>', pos);
@@ -1546,13 +1546,13 @@ function compileDocxZip(file, profile, r) {
           xml += renderTextRun(html.substring(pos), bold, italic, underline, color);
           break;
         }
-        
+
         const tagContent = html.substring(pos + 1, endTagPos).trim();
         pos = endTagPos + 1;
-        
+
         const isClosing = tagContent.startsWith('/');
         const tagName = (isClosing ? tagContent.substring(1) : tagContent.split(/\s+/)[0]).toLowerCase();
-        
+
         if (tagName === 'b' || tagName === 'strong') {
           bold = !isClosing;
         } else if (tagName === 'i' || tagName === 'em') {
@@ -1606,7 +1606,7 @@ function compileDocxZip(file, profile, r) {
     }
     return xml;
   }
-  
+
   function renderTextRun(text, bold, italic, underline, color) {
     let decodedText = text
       .replace(/&lt;/gi, '<')
@@ -1614,7 +1614,7 @@ function compileDocxZip(file, profile, r) {
       .replace(/&amp;/gi, '&')
       .replace(/&quot;/gi, '"')
       .replace(/&apos;/gi, "'");
-      
+
     // Áp dụng các thay thế tĩnh từ profile.replacements
     if (profile.replacements && profile.replacements.length > 0) {
       for (const rep of profile.replacements) {
@@ -1626,10 +1626,10 @@ function compileDocxZip(file, profile, r) {
         decodedText = decodedText.normalize('NFC').replace(regex, rep.replaceText || "");
       }
     }
-      
+
     return `<w:r><w:rPr>${bold ? '<w:b/>' : ''}${italic ? '<w:i/>' : ''}${underline ? '<w:u w:val="single"/>' : ''}${color ? `<w:color w:val="${color}"/>` : ''}</w:rPr><w:t xml:space="preserve">${escapeXml(decodedText)}</w:t></w:r>`;
   }
-  
+
   function compileTableHtml(tableHtml) {
     let xml = '<w:tbl>';
     const hasBorders = !tableHtml.includes('docx-table-borderless');
@@ -1638,7 +1638,7 @@ function compileDocxZip(file, profile, r) {
     } else {
       xml += `<w:tblPr><w:tblBorders><w:top w:val="none"/><w:left w:val="none"/><w:bottom w:val="none"/><w:right w:val="none"/><w:insideH w:val="none"/><w:insideV w:val="none"/></w:tblBorders></w:tblPr>`;
     }
-    
+
     const trRegex = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
     let trMatch;
     while ((trMatch = trRegex.exec(tableHtml)) !== null) {
@@ -1661,13 +1661,13 @@ function compileDocxZip(file, profile, r) {
     xml += '</w:tbl>';
     return xml;
   }
-  
+
   function compileParagraphHtml(pTagHtml) {
     const match = pTagHtml.match(/^(<div|<p)\b([^>]*?)>([\s\S]*?)(<\/div>|<\/p>)$/i);
     if (!match) return "";
     const attrs = match[2];
     const innerHtml = match[3];
-    
+
     let alignStyle = "";
     const styleMatch = attrs.match(/style="([^"]+)"/i);
     if (styleMatch) {
@@ -1684,7 +1684,7 @@ function compileDocxZip(file, profile, r) {
     const inlineXml = compileInlineHtml(innerHtml);
     return `<w:p>${pPr}${inlineXml}</w:p>`;
   }
-  
+
   function compileHtmlToWordXml(html) {
     let xml = "";
     const blockRegex = /(<table\b[^>]*>[\s\S]*?<\/table>|<div\b[^>]*>[\s\S]*?<\/div>|<p\b[^>]*>[\s\S]*?<\/p>)/gi;
@@ -1714,9 +1714,9 @@ function compileDocxZip(file, profile, r) {
     }
     return xml;
   }
-  
+
   const bodyXml = compileHtmlToWordXml(resolvedHtml);
-  
+
   let docxZip;
   if (file.originalBase64) {
     docxZip = new AdmZip(Buffer.from(file.originalBase64, 'base64'));
@@ -1724,11 +1724,11 @@ function compileDocxZip(file, profile, r) {
     docxZip = new AdmZip();
     const relsContent = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`;
     docxZip.addFile('_rels/.rels', Buffer.from(relsContent, 'utf-8'));
-    
+
     const contentTypesContent = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`;
     docxZip.addFile('[Content_Types].xml', Buffer.from(contentTypesContent, 'utf-8'));
   }
-  
+
   const documentXmlContent = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -1736,7 +1736,7 @@ function compileDocxZip(file, profile, r) {
     <w:sectPr/>
   </w:body>
 </w:document>`;
-  
+
   docxZip.updateFile('word/document.xml', Buffer.from(documentXmlContent, 'utf-8'));
   return docxZip.toBuffer();
 }
@@ -1767,7 +1767,7 @@ app.get('/api/profiles/:id/export-images', async (req, res) => {
     });
 
     const zipBuffer = zip.toBuffer();
-    
+
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(profile.name)}_images.zip"`);
     res.send(zipBuffer);
@@ -1804,7 +1804,7 @@ app.get('/api/profiles/:id/export', async (req, res) => {
     }
 
     const zip = new AdmZip();
-    
+
     // Nạp live variables từ Tệp Mail Merge kết nối nếu có
     let variables = profile.variables || [];
     if (profile.type === 'edited' && profile.mailMergeId) {
@@ -1819,17 +1819,17 @@ app.get('/api/profiles/:id/export', async (req, res) => {
       const dotIndex = file.name.lastIndexOf('.');
       const baseName = dotIndex !== -1 ? file.name.substring(0, dotIndex) : file.name;
       const ext = dotIndex !== -1 ? file.name.substring(dotIndex) : '.txt';
-      
+
       const extLower = ext.toLowerCase();
       let exportExt = ext;
       if (extLower === '.doc' || extLower === '.docx') {
         exportExt = '.docx';
       }
       const exportName = `${baseName}_hoanthien${exportExt}`;
-      
+
       const isDocx = extLower === '.docx';
       const isDoc = extLower === '.doc';
-      
+
       if (isDocx || isDoc) {
         try {
           const docxBuffer = compileDocxZip(file, { ...profile.toObject(), variables }, 1);
@@ -1852,7 +1852,7 @@ app.get('/api/profiles/:id/export', async (req, res) => {
     }
 
     const zipBuffer = zip.toBuffer();
-    
+
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(profile.name)}_export.zip"`);
     res.send(zipBuffer);

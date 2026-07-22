@@ -5,19 +5,23 @@
 /* 1. Khai báo các biến thiết kế toàn cục (Design Tokens) */
 :root {
     /* Tông màu chủ đạo thương hiệu MobiFone và trạng thái phẳng nhã nhặn */
-    --primary-color: #00569e;       /* Xanh dương MobiFone chính thức */
+    --primary-color: #00569e;
+    /* Xanh dương MobiFone chính thức */
     --primary-hover: #004580;
-    --primary-light: #f0f6fc;       /* Xanh nhạt tinh tế cho trạng thái active */
+    --primary-light: #f0f6fc;
+    /* Xanh nhạt tinh tế cho trạng thái active */
     --primary-border: #cce3f5;
-    --mobi-blue: #00569e;           /* Xanh thương hiệu Mobi */
-    --fone-red: #e31837;            /* Đỏ thương hiệu Fone */
-    
+    --mobi-blue: #00569e;
+    /* Xanh thương hiệu Mobi */
+    --fone-red: #e31837;
+    /* Đỏ thương hiệu Fone */
+
     /* Màu sắc trạng thái dạng bán phẳng (Flat Corporate Palette) */
     --success-color: #10b981;
     --success-hover: #059669;
     --success-light: #ecfdf5;
     --success-border: #a7f3d0;
-    
+
     --danger-color: #ef4444;
     --danger-hover: #dc2626;
     --danger-light: #fef2f2;
@@ -29,22 +33,27 @@
     --warning-border: #fde68a;
 
     /* Màu nền nhã nhặn công sở */
-    --bg-app: #f8fafc;              /* Nền xám xanh nhạt sang trọng */
+    --bg-app: #f8fafc;
+    /* Nền xám xanh nhạt sang trọng */
     --bg-card: #ffffff;
     --bg-input: #f1f5f9;
-    --border-color: #e2e8f0;        /* Viền mảnh tinh tế */
+    --border-color: #e2e8f0;
+    /* Viền mảnh tinh tế */
     --border-hover: #cbd5e1;
-    
+
     /* Hệ thống chữ (Typography Slate colors) */
-    --text-primary: #0f172a;        /* Xám tối (gần như đen) dễ đọc */
-    --text-secondary: #475569;      /* Xám trung bình */
-    --text-muted: #64748b;          /* Xám nhạt */
-    
+    --text-primary: #0f172a;
+    /* Xám tối (gần như đen) dễ đọc */
+    --text-secondary: #475569;
+    /* Xám trung bình */
+    --text-muted: #64748b;
+    /* Xám nhạt */
+
     /* Bóng đổ nhẹ nhàng hiện đại (Soft Shadows) */
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
-    
+
     /* Tên biến tương thích ngược cho các file JS (components.js) */
     --accent-red: var(--danger-color);
     --accent-red-bg: var(--danger-light);
@@ -56,7 +65,7 @@
     --radius-sm: 6px;
     --radius-md: 8px;
     --radius-lg: 12px;
-    
+
     /* Hiệu ứng chuyển động mượt mà */
     --transition-fast: 0.15s ease;
     --transition-normal: 0.25s ease;
@@ -65,14 +74,18 @@
 /* Phông chữ và màu sắc nhận diện thương hiệu MobiFone chuẩn */
 .brand-mobifone {
     display: inline-flex;
-    font-weight: 750; /* Giữ độ dày chữ đậm đà chuyên nghiệp */
-    -webkit-text-fill-color: initial !important; /* Ghi đè hiệu ứng trong suốt của parent hero gradient */
+    font-weight: 750;
+    /* Giữ độ dày chữ đậm đà chuyên nghiệp */
+    -webkit-text-fill-color: initial !important;
+    /* Ghi đè hiệu ứng trong suốt của parent hero gradient */
     background: none !important;
 }
+
 .brand-mobifone .mobi-blue {
     color: var(--mobi-blue) !important;
     -webkit-text-fill-color: var(--mobi-blue) !important;
 }
+
 .brand-mobifone .fone-red {
     color: var(--fone-red) !important;
     -webkit-text-fill-color: var(--fone-red) !important;
@@ -85,7 +98,21 @@
     box-sizing: border-box;
 }
 
-body, input, button, select, textarea, h1, h2, h3, h4, h5, h6, p, span, a, li {
+body,
+input,
+button,
+select,
+textarea,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+span,
+a,
+li {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -102,7 +129,10 @@ body {
 }
 
 /* 3. Typography chung */
-h1, h2, h3, h4 {
+h1,
+h2,
+h3,
+h4 {
     font-weight: 600;
     color: var(--text-primary);
 }
@@ -139,7 +169,8 @@ h1, h2, h3, h4 {
 }
 
 .logo-img {
-    height: 26px; /* Kích thước logo tối ưu */
+    height: 26px;
+    /* Kích thước logo tối ưu */
     width: auto;
     object-fit: contain;
     transition: transform var(--transition-normal);
@@ -755,8 +786,10 @@ h1, h2, h3, h4 {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 20px;
-    height: auto; /* Chiều cao tự động giãn theo trình soạn thảo bên trong */
-    background-color: #f1f5f9; /* Giả lập không gian kĩ thuật số phẳng */
+    height: auto;
+    /* Chiều cao tự động giãn theo trình soạn thảo bên trong */
+    background-color: #f1f5f9;
+    /* Giả lập không gian kĩ thuật số phẳng */
     padding: 16px;
     border-radius: var(--radius-md);
     border: 1px solid var(--border-color);
@@ -774,7 +807,8 @@ h1, h2, h3, h4 {
 .preview-column {
     display: flex;
     flex-direction: column;
-    height: auto; /* Chiều cao tự động giãn theo trình soạn thảo bên trong */
+    height: auto;
+    /* Chiều cao tự động giãn theo trình soạn thảo bên trong */
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     overflow: hidden;
@@ -1007,34 +1041,73 @@ form {
 
 /* 15. Hiệu ứng Hoạt cảnh (Keyframe Animations) */
 @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
 }
 
 @keyframes fadeOut {
-    from { opacity: 1; transform: translateX(0); }
-    to { opacity: 0; transform: translateX(100%); }
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+
+    to {
+        opacity: 0;
+        transform: translateX(100%);
+    }
 }
 
 @keyframes slideUp {
-    from { transform: translateY(16px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
+    from {
+        transform: translateY(16px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
 }
 
 @keyframes slideInRight {
-    from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
 }
 
 @keyframes progressPulse {
-    0% { background-color: var(--primary-color); }
-    50% { background-color: var(--primary-hover); }
-    100% { background-color: var(--primary-color); }
+    0% {
+        background-color: var(--primary-color);
+    }
+
+    50% {
+        background-color: var(--primary-hover);
+    }
+
+    100% {
+        background-color: var(--primary-color);
+    }
 }
 
 @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .scan-progress-bar.pulsing {
@@ -1279,7 +1352,8 @@ form {
     background-color: #ffffff;
 }
 
-.docx-table td, .docx-table th {
+.docx-table td,
+.docx-table th {
     border: 1px solid #cbd5e1;
     padding: 5px 7px;
     vertical-align: top;
@@ -1311,7 +1385,7 @@ form {
         overflow: hidden !important;
         height: 100vh !important;
     }
-    
+
     /* Tối ưu hóa Header trên Mobile dạng thanh ngang phẳng */
     .app-header {
         height: 56px !important;
@@ -1322,46 +1396,47 @@ form {
         padding: 0 16px !important;
         gap: 0 !important;
     }
-    
+
     .header-left {
         width: auto !important;
         flex-direction: row !important;
         align-items: center !important;
         gap: 0 !important;
     }
-    
+
     .logo-container {
         justify-content: flex-start;
         width: auto !important;
     }
-    
+
     .logo-img {
         height: 22px !important;
     }
-    
+
     .header-divider {
         display: none !important;
     }
-    
+
     .header-title {
-        display: none !important; /* Ẩn dòng chữ hoa quá dài trên màn hình di động */
+        display: none !important;
+        /* Ẩn dòng chữ hoa quá dài trên màn hình di động */
     }
-    
+
     .header-right {
         position: static !important;
     }
-    
+
     #btn-create-profile {
         width: 34px;
         height: 34px;
         padding: 0 !important;
         border-radius: 50% !important;
     }
-    
+
     #btn-create-profile .btn-text {
         display: none !important;
     }
-    
+
     #btn-create-profile i {
         margin: 0 !important;
         width: 18px;
@@ -1373,7 +1448,7 @@ form {
         height: calc(100vh - 56px) !important;
         overflow: hidden !important;
     }
-    
+
     /* Luôn hiển thị Workspace chính trên Mobile */
     .app-main {
         display: block !important;
@@ -1382,40 +1457,41 @@ form {
         padding: 16px !important;
         overflow-y: auto !important;
     }
-    
+
     .profile-list {
         max-height: none !important;
         flex: 1 !important;
         overflow-y: auto !important;
     }
-    
+
     /* Hiển thị nút quay lại danh sách trên Mobile */
     .btn-mobile-back {
         display: inline-flex !important;
     }
-    
+
     /* Tối ưu hóa khoảng đệm (padding) của card trên Mobile để tăng không gian hiển thị */
     .card {
         padding: 16px !important;
     }
-    
+
     /* Tối ưu hóa bảng cụm từ lỗi trên mobile */
     .red-phrases-table th,
     .red-phrases-table td {
         padding: 8px 10px !important;
     }
-    
+
     .preview-split-container {
         height: auto !important;
         grid-template-columns: 1fr !important;
         gap: 12px !important;
         padding: 10px !important;
     }
-    
+
     .preview-column {
-        height: auto !important; /* Đảm bảo tự động co giãn theo nội dung trên thiết bị di động */
+        height: auto !important;
+        /* Đảm bảo tự động co giãn theo nội dung trên thiết bị di động */
     }
-    
+
     /* Tối ưu hóa modal popup trên di động tránh bị sát viền */
     .modal-content {
         width: calc(100% - 32px) !important;
@@ -1440,7 +1516,8 @@ form {
     flex-direction: column;
     overflow-y: auto;
     color: var(--text-primary);
-    padding-top: 64px; /* Nhường chỗ cho Landing Header cố định */
+    padding-top: 64px;
+    /* Nhường chỗ cho Landing Header cố định */
 }
 
 /* Thanh Header Landing Page đồng bộ 100% với Header Workspace */
@@ -1604,7 +1681,8 @@ form {
     flex-shrink: 0;
 }
 
-.feature-icon svg, .feature-icon i {
+.feature-icon svg,
+.feature-icon i {
     width: 20px;
     height: 20px;
 }
@@ -1633,28 +1711,36 @@ form {
 
 @media (max-width: 768px) {
     .landing-page-container {
-        padding-top: 56px; /* Điều chỉnh khoảng đệm cho mobile */
+        padding-top: 56px;
+        /* Điều chỉnh khoảng đệm cho mobile */
     }
+
     .landing-header {
         padding: 0 16px;
         height: 56px;
     }
+
     .landing-hero {
         padding: 50px 16px;
     }
+
     .hero-title {
         font-size: 26px;
     }
+
     .hero-subtitle {
         font-size: 13.5px;
         margin-bottom: 24px;
     }
+
     .features-section {
         padding: 40px 20px;
     }
+
     .features-grid {
         gap: 16px;
     }
+
     .feature-card {
         padding: 20px;
     }
@@ -1728,7 +1814,8 @@ form {
     border: 1px solid var(--border-color);
 }
 
-.variables-table th, .variables-table td {
+.variables-table th,
+.variables-table td {
     padding: 10px 12px;
     border-bottom: 1px solid var(--border-color);
     text-align: left;
@@ -1898,10 +1985,14 @@ form {
 /* Vùng soạn thảo chính (contenteditable) */
 .rich-text-editor {
     min-height: 480px;
-    height: auto; /* Tự động co giãn theo nội dung văn bản */
-    max-height: none; /* Bỏ giới hạn chiều cao tối đa để không cần cuộn */
-    overflow-y: visible; /* Cho phép hiển thị toàn bộ nội dung mà không xuất hiện thanh cuộn riêng */
-    padding: 40px 50px; /* Margins trang giấy */
+    height: auto;
+    /* Tự động co giãn theo nội dung văn bản */
+    max-height: none;
+    /* Bỏ giới hạn chiều cao tối đa để không cần cuộn */
+    overflow-y: visible;
+    /* Cho phép hiển thị toàn bộ nội dung mà không xuất hiện thanh cuộn riêng */
+    padding: 40px 50px;
+    /* Margins trang giấy */
     outline: none;
     font-family: 'Times New Roman', Times, serif;
     font-size: 16px;
@@ -2149,7 +2240,8 @@ form {
 /* Bố cục hàng ngang linh hoạt chứa các khối chính */
 .workspace-grid {
     display: grid;
-    grid-template-columns: 1fr; /* Mặc định xếp dọc trên thiết bị di động */
+    grid-template-columns: 1fr;
+    /* Mặc định xếp dọc trên thiết bị di động */
     gap: 16px;
     margin-bottom: 20px;
     align-items: start;
@@ -2159,19 +2251,19 @@ form {
     .workspace-grid {
         grid-template-columns: repeat(12, 1fr);
     }
-    
+
     .workspace-grid .card.col-span-3 {
         grid-column: span 3;
     }
-    
+
     .workspace-grid .card.col-span-4 {
         grid-column: span 4;
     }
-    
+
     .workspace-grid .card.col-span-6 {
         grid-column: span 6;
     }
-    
+
     .workspace-grid .card.col-span-12 {
         grid-column: span 12;
     }
@@ -2607,7 +2699,8 @@ form {
     gap: 6px;
     background-color: #f1f5f9;
     padding: 4px;
-    border-radius: 30px; /* Dáng capsule mềm mại cực kỳ hiện đại */
+    border-radius: 30px;
+    /* Dáng capsule mềm mại cực kỳ hiện đại */
     border: 1px solid rgba(226, 232, 240, 0.8);
     flex-shrink: 0;
     height: 38px;

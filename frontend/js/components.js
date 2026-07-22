@@ -354,7 +354,7 @@ window.Components = {
             <!-- Khối 6: Tải xuống hồ sơ hoàn chỉnh (Tài liệu hoặc Ảnh) -->
             ${(() => {
                 if (!isEdited) return '';
-                
+
                 if (currentActiveTab === 'images') {
                     const hasImages = profile.images && profile.images.length > 0;
                     return `
@@ -370,7 +370,7 @@ window.Components = {
                         </div>
                     `;
                 }
-                
+
                 return '';
             })()}
         `;
@@ -439,15 +439,7 @@ window.Components = {
             `;
         }
 
-        // Gom nhóm variables theo group
-        const groups = {};
-        variables.forEach((v, index) => {
-            const groupName = v.group || 'Chung';
-            if (!groups[groupName]) {
-                groups[groupName] = [];
-            }
-            groups[groupName].push({ ...v, originalIndex: index });
-        });
+        const sortedVars = [...variables].sort((a, b) => a.name.localeCompare(b.name));
 
         const importDropzone = `
             <div class="excel-dropzone" id="excel-dropzone" data-profile-id="${profile.id}" style="margin-top: 16px;">
@@ -464,15 +456,12 @@ window.Components = {
         const iconTransform = "transform: rotate(180deg);";
 
         const headerHtml = `
-            <div class="variables-group-header">
-                <p style="font-size: 12px; color: var(--text-secondary); margin: 0; max-width: 70%;">
+            <div class="variables-group-header" style="margin-bottom: 12px;">
+                <p style="font-size: 12px; color: var(--text-secondary); margin: 0; max-width: 100%;">
                     ${isMailMerge
-                ? 'Định nghĩa các mục và trường Mail Merge. Các biến này sẽ đồng bộ trực tiếp tới tài liệu của hồ sơ kết nối.'
-                : 'Danh sách các mục biến Mail Merge. Thay đổi giá trị tại đây sẽ tự động đồng bộ sang tất cả tài liệu.'}
+                ? 'Định nghĩa các trường Mail Merge của bạn. Các biến này sẽ đồng bộ trực tiếp tới tất cả tài liệu.'
+                : 'Danh sách các trường biến Mail Merge. Thay đổi giá trị tại đây sẽ tự động đồng bộ sang toàn bộ tài liệu trong hồ sơ.'}
                 </p>
-                <button class="btn btn-primary" id="btn-create-group" style="height: 32px; font-size: 12px;">
-                    <i data-lucide="folder-plus"></i> Tạo mục mới
-                </button>
             </div>
         `;
 
@@ -484,82 +473,74 @@ window.Components = {
                     Hồ sơ thanh toán này chưa được kết nối tới Tệp Mail Merge nào. Vui lòng chọn và kết nối tới một Tệp Mail Merge ở trên để liên kết và chỉnh sửa các biến cho tài liệu.
                 </div>
             `;
-        } else if (Object.keys(groups).length === 0) {
+        } else if (sortedVars.length === 0) {
             mainContentHtml = `
                 <div style="text-align: center; color: var(--text-muted); padding: 30px; border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
-                    Chưa có mục biến Mail Merge nào. Hãy bấm nút "Tạo mục mới" hoặc kéo thả file Excel để bắt đầu.
+                    Chưa có biến Mail Merge nào. Hãy bấm nút "Thêm biến mới" ở trên hoặc kéo thả file Excel để bắt đầu.
                 </div>
             `;
         } else {
-            mainContentHtml = Object.keys(groups).sort().map(groupName => {
-                const groupVars = groups[groupName];
-
-                const variableRows = groupVars.map((v) => {
-                    // Dòng biến
-                    return `
-                        <tr class="variable-row" data-name="${v.name}" data-group="${groupName}">
-                            <td style="width: 40%;">
-                                <div class="field-key-wrapper">
-                                    <span class="field-key-bracket">{{</span>
-                                    <input type="text" 
-                                           class="var-key-input field-key-input" 
-                                           value="${v.name}" 
-                                           placeholder="TEN_TRUONG..." 
-                                           data-original-name="${v.name}" 
-                                           data-group="${groupName}">
-                                    <span class="field-key-bracket">}}</span>
-                                </div>
-                            </td>
-                            <td style="width: 50%;">
-                                <textarea class="var-val-input field-value-input" 
-                                          placeholder="(Trống hoặc nhập nhiều dòng)" 
-                                          data-name="${v.name}" 
-                                          data-group="${groupName}"
-                                          rows="1"
-                                          style="width: 100%; min-height: 38px; resize: vertical; padding: 8px 10px; font-size: 13px; line-height: 1.5; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background-color: var(--bg-primary); color: var(--text-primary); font-family: inherit; transition: border-color var(--transition-fast);">${v.value || ''}</textarea>
-                            </td>
-                            <td style="text-align: center; width: 10%;">
-                                <button class="btn-delete-field btn-delete-variable" data-name="${v.name}" data-group="${groupName}" title="Xóa trường này">
-                                    <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    `;
-                }).join('');
-
+            const variableRows = sortedVars.map((v) => {
                 return `
-                    <div class="mail-merge-group-card" data-group-name="${groupName}">
-                        <div class="group-card-header">
-                            <div class="group-title-wrapper">
-                                <i data-lucide="folder" class="group-icon"></i>
-                                <span class="group-title-text" contenteditable="true" data-original-group="${groupName}" title="Click vào để sửa tên mục">${groupName}</span>
+                    <tr class="variable-row" data-name="${v.name}" data-group="Chung">
+                        <td style="width: 40%;">
+                            <div class="field-key-wrapper">
+                                <span class="field-key-bracket">{{</span>
+                                <input type="text" 
+                                       class="var-key-input field-key-input" 
+                                       value="${v.name}" 
+                                       placeholder="TEN_TRUONG..." 
+                                       data-original-name="${v.name}" 
+                                       data-group="Chung">
+                                <span class="field-key-bracket">}}</span>
                             </div>
-                            <div class="group-actions">
-                                <button class="btn btn-secondary btn-add-field-to-group" data-group="${groupName}">
-                                    <i data-lucide="plus"></i> Thêm trường
-                                </button>
-                                <button class="btn btn-danger btn-delete-group" data-group="${groupName}" title="Xóa toàn bộ mục này">
-                                    <i data-lucide="trash-2"></i>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="group-card-body">
-                            <table class="group-fields-table">
-                                <thead>
-                                    <tr>
-                                        <th style="width: 40%;">Tên trường (Key)</th>
-                                        <th style="width: 50%;">Giá trị (Value)</th>
-                                        <th style="text-align: center; width: 10%;">Xóa</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${variableRows}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                        </td>
+                        <td style="width: 50%;">
+                            <textarea class="var-val-input field-value-input" 
+                                      placeholder="(Trống hoặc nhập nhiều dòng)" 
+                                      data-name="${v.name}" 
+                                      data-group="Chung"
+                                      rows="1"
+                                      style="width: 100%; min-height: 38px; resize: vertical; padding: 8px 10px; font-size: 13px; line-height: 1.5; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background-color: var(--bg-primary); color: var(--text-primary); font-family: inherit; transition: border-color var(--transition-fast);">${v.value || ''}</textarea>
+                        </td>
+                        <td style="text-align: center; width: 10%;">
+                            <button class="btn-delete-field btn-delete-variable" data-name="${v.name}" data-group="Chung" title="Xóa trường này">
+                                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                            </button>
+                        </td>
+                    </tr>
                 `;
             }).join('');
+
+            mainContentHtml = `
+                <div class="mail-merge-group-card" data-group-name="Chung">
+                    <div class="group-card-header">
+                        <div class="group-title-wrapper">
+                            <i data-lucide="variable" class="group-icon" style="color: var(--primary-color);"></i>
+                            <span class="group-title-text" style="font-weight: 700;">Danh sách biến Mail Merge</span>
+                        </div>
+                        <div class="group-actions">
+                            <button class="btn btn-primary" id="btn-add-variable-flat">
+                                <i data-lucide="plus"></i> Thêm biến mới
+                            </button>
+                        </div>
+                    </div>
+                    <div class="group-card-body">
+                        <table class="group-fields-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40%;">Tên trường (Key)</th>
+                                    <th style="width: 50%;">Giá trị (Value)</th>
+                                    <th style="text-align: center; width: 10%;">Xóa</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${variableRows}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
         }
 
         const showVariablesBody = isMailMerge || !!profile.mailMergeId;
@@ -1025,7 +1006,72 @@ window.Components = {
             <option value="${file.id}" ${idx === 0 ? 'selected' : ''}>${file.name}</option>
         `).join('');
 
-        const rowSelectorHtml = '';
+        // Tự động sinh bộ chọn dòng xem trước (Mail Merge)
+        let rowSelectorHtml = '';
+        const maxRows = this.getMaxRowIndex(profile.variables);
+        if (maxRows > 1 && (profile.type === 'mailmerge' || profile.mailMergeId)) {
+            const currentSelectedRow = (window.AppWorkspaceState && window.AppWorkspaceState.previewRowIndex) || 1;
+            let rowOptions = '';
+            for (let r = 1; r <= maxRows; r++) {
+                rowOptions += `<option value="${r}" ${r === currentSelectedRow ? 'selected' : ''}>Dòng ${r}</option>`;
+            }
+            rowSelectorHtml = `
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <label for="select-preview-row" style="font-size: 13px; font-weight: 600;">Xem trước dòng:</label>
+                    <select id="select-preview-row" style="height: 34px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0 10px; font-size: 13px; background-color: var(--bg-primary); color: var(--text-primary); cursor: pointer;">
+                        ${rowOptions}
+                    </select>
+                </div>
+            `;
+        }
+
+        // Tự động sinh bảng đồng bộ nhanh giá trị biến sang toàn bộ tài liệu
+        let quickVarSyncHtml = '';
+        if (profile.variables && profile.variables.length > 0) {
+            const firstVar = profile.variables[0];
+            const currentSelectedRow = (window.AppWorkspaceState && window.AppWorkspaceState.previewRowIndex) || 1;
+            const defaultVal = this.getVariableValue(profile.variables, firstVar.name, currentSelectedRow);
+
+            let rowPickerHtml = '';
+            if (maxRows > 1 && (profile.type === 'mailmerge' || profile.mailMergeId)) {
+                const varLines = (firstVar && typeof firstVar.value === 'string') ? firstVar.value.split('\n') : [];
+                let rowOptions = '<option value="">Chọn nhanh từ danh sách...</option>';
+                for (let r = 1; r <= maxRows; r++) {
+                    const lineVal = (r - 1 < varLines.length) ? varLines[r - 1].trim() : '';
+                    rowOptions += `<option value="${r}">${lineVal || `(Dòng ${r} trống)`}</option>`;
+                }
+                rowPickerHtml = `
+                    <select id="select-quick-var-row-picker" style="height: 34px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0 10px; font-size: 13px; background-color: var(--bg-primary); color: var(--text-primary); cursor: pointer; max-width: 250px;">
+                        ${rowOptions}
+                    </select>
+                `;
+            }
+
+            quickVarSyncHtml = `
+                <div class="quick-variable-sync-container" style="margin-top: 6px; margin-bottom: 14px; padding: 12px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background-color: var(--bg-secondary); display: flex; flex-direction: column; gap: 8px;">
+                    <div style="font-size: 13px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+                        <i data-lucide="variable" style="width: 16px; height: 16px; color: var(--primary-color);"></i>
+                        Đồng bộ nhanh giá trị biến sang toàn bộ tài liệu trong hồ sơ
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <label for="select-quick-var-name" style="font-size: 12.5px; color: var(--text-secondary); font-weight: 500;">Chọn biến:</label>
+                            <select id="select-quick-var-name" style="height: 34px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0 10px; font-size: 13px; background-color: var(--bg-primary); color: var(--text-primary); cursor: pointer; min-width: 150px;">
+                                ${profile.variables.map(v => `<option value="${v.name}">${v.name}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 6px; flex: 1; min-width: 260px;">
+                            <label for="input-quick-var-value" style="font-size: 12.5px; color: var(--text-secondary); font-weight: 500;">Giá trị:</label>
+                            <input type="text" id="input-quick-var-value" value="${defaultVal.replace(/"/g, '&quot;')}" placeholder="Nhập giá trị gán (Ví dụ: Nguyễn Văn A)..." style="flex: 1; height: 34px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0 10px; font-size: 13px; background-color: var(--bg-primary); color: var(--text-primary);">
+                            ${rowPickerHtml}
+                        </div>
+                        <button class="btn btn-primary" id="btn-submit-quick-var-sync" style="height: 34px; font-size: 12.5px; padding: 0 16px; display: inline-flex; align-items: center; gap: 6px;">
+                            <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Thay thế & Đồng bộ
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
 
         return `
             <div class="card-header-toggle" id="preview-section-toggle" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;">
@@ -1047,6 +1093,7 @@ window.Components = {
                         </div>
                         ${rowSelectorHtml}
                     </div>
+                    ${quickVarSyncHtml}
 
                     <!-- Trình soạn thảo Rich Text (Chỉ cần 1 văn bản) -->
                     <div class="preview-split-container" style="grid-template-columns: 1fr;">
@@ -1061,9 +1108,48 @@ window.Components = {
                                 <!-- Thanh công cụ định dạng -->
                                 <div class="editor-toolbar">
                                     <div class="toolbar-group">
+                                        <button class="toolbar-btn" data-command="undo" title="Hoàn tác (Ctrl+Z)">
+                                            <i data-lucide="undo" style="width: 14px; height: 14px;"></i>
+                                        </button>
+                                        <button class="toolbar-btn" data-command="redo" title="Làm lại (Ctrl+Y)">
+                                            <i data-lucide="redo" style="width: 14px; height: 14px;"></i>
+                                        </button>
+                                    </div>
+                                    <div class="toolbar-group">
                                         <button class="toolbar-btn" data-command="bold" title="In đậm" style="font-weight: bold;">B</button>
                                         <button class="toolbar-btn" data-command="italic" title="In nghiêng" style="font-style: italic;">I</button>
                                         <button class="toolbar-btn" data-command="underline" title="Gạch chân" style="text-decoration: underline;">U</button>
+                                        <button class="toolbar-btn" data-command="removeFormat" title="Xóa định dạng">
+                                            <i data-lucide="remove-formatting" style="width: 14px; height: 14px;"></i>
+                                        </button>
+                                    </div>
+                                    <div class="toolbar-group">
+                                        <button class="toolbar-btn" data-command="justifyLeft" title="Căn lề trái">
+                                            <i data-lucide="align-left" style="width: 14px; height: 14px;"></i>
+                                        </button>
+                                        <button class="toolbar-btn" data-command="justifyCenter" title="Căn giữa">
+                                            <i data-lucide="align-center" style="width: 14px; height: 14px;"></i>
+                                        </button>
+                                        <button class="toolbar-btn" data-command="justifyRight" title="Căn lề phải">
+                                            <i data-lucide="align-right" style="width: 14px; height: 14px;"></i>
+                                        </button>
+                                        <button class="toolbar-btn" data-command="justifyFull" title="Căn đều hai bên">
+                                            <i data-lucide="align-justify" style="width: 14px; height: 14px;"></i>
+                                        </button>
+                                    </div>
+                                    <div class="toolbar-group">
+                                        <button class="toolbar-btn" data-command="insertUnorderedList" title="Danh sách ký hiệu">
+                                            <i data-lucide="list" style="width: 14px; height: 14px;"></i>
+                                        </button>
+                                        <button class="toolbar-btn" data-command="insertOrderedList" title="Danh sách số">
+                                            <i data-lucide="list-ordered" style="width: 14px; height: 14px;"></i>
+                                        </button>
+                                        <button class="toolbar-btn" data-command="outdent" title="Giảm thụt lề">
+                                            <i data-lucide="outdent" style="width: 14px; height: 14px;"></i>
+                                        </button>
+                                        <button class="toolbar-btn" data-command="indent" title="Tăng thụt lề">
+                                            <i data-lucide="indent" style="width: 14px; height: 14px;"></i>
+                                        </button>
                                     </div>
                                     <div class="toolbar-group">
                                         <select class="toolbar-select font-name-select" title="Phông chữ">
@@ -1087,6 +1173,9 @@ window.Components = {
                                     <div class="toolbar-group" style="display: flex; gap: 6px;">
                                         <button class="btn btn-secondary btn-insert-merge-field-trigger" style="height: 28px; font-size: 11px; padding: 0 8px;">
                                             <i data-lucide="plus-circle" style="width: 12px; height: 12px; margin-right: 4px;"></i> Chèn biến Mail Merge
+                                        </button>
+                                        <button class="btn btn-secondary btn-refresh-editor-content" id="btn-refresh-editor-content" title="Tải lại nội dung và đồng bộ các biến Mail Merge mới nhất" style="height: 28px; font-size: 11px; padding: 0 8px; display: inline-flex; align-items: center; gap: 4px;">
+                                            <i data-lucide="rotate-cw" style="width: 12px; height: 12px;"></i> Làm mới tài liệu
                                         </button>
                                     </div>
                                 </div>
@@ -1300,17 +1389,17 @@ window.Components = {
         const spanRegex = /<span\b([^>]*)>([\s\S]*?)<\/span>/gi;
         updatedHtml = updatedHtml.replace(spanRegex, (match, attrs, content) => {
             if (!attrs.includes('mail-merge-tag')) return match;
-            
+
             const varNameMatch = attrs.match(/data-variable="([^"]+)"/i);
             if (!varNameMatch) return match;
             const cleanVarName = varNameMatch[1].trim();
-            
+
             const dataRowMatch = attrs.match(/data-row="(\d+)"/i);
             const targetRowIndex = dataRowMatch ? (parseInt(dataRowMatch[1]) || 1) : rowIndex;
-            
+
             const value = this.getVariableValue(variables, cleanVarName, targetRowIndex);
             const displayText = value || `{{${cleanVarName}}}`;
-            
+
             return `<span ${attrs.trim()}>${displayText}</span>`;
         });
 
